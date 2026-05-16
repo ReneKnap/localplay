@@ -1,2 +1,26 @@
+# Claude Code workflow artifacts
 .claude/
 CLAUDE.md
+
+# Built output
+build/
+**/build/
+
+# Gradle
+.gradle/
+local.properties
+
+# Kotlin 2.x incremental compilation cache
+.kotlin/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+captures/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Generated KSP/Hilt
+**/generated/
