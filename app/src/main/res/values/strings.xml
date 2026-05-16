@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MediaCenter</string>
+
+    <string name="home_empty_title">Pick a folder to get started</string>
+    <string name="home_empty_explanation">MediaCenter scans the folders you choose and plays the music inside.</string>
+    <string name="home_pick_folder_button">Pick a folder</string>
+    <string name="home_add_folder">Add folder</string>
+    <string name="home_remove_folder">Remove folder</string>
+    <string name="home_folder_not_accessible">Folder not accessible</string>
 </resources>
