@@ -21,15 +21,18 @@ class PlaybackQueueImpl
         private val _state = MutableStateFlow<PlaybackQueueState>(PlaybackQueueState.Empty)
         override val state: StateFlow<PlaybackQueueState> = _state.asStateFlow()
 
-        override suspend fun setQueue(folderUri: String) {
+        override suspend fun setQueue(
+            folderUri: String,
+            startTrackUri: String?,
+        ) {
             val folders = audioRepository.folders.first()
             val scan = folders.firstOrNull { it.folder.uri == folderUri }?.scan
-            _state.value =
-                if (scan is FolderScanState.Ready && scan.tracks.isNotEmpty()) {
-                    PlaybackQueueState.Active(scan.tracks, currentIndex = 0)
-                } else {
-                    PlaybackQueueState.Empty
-                }
+            if (scan !is FolderScanState.Ready || scan.tracks.isEmpty()) {
+                _state.value = PlaybackQueueState.Empty
+                return
+            }
+            val startIndex = scan.tracks.indexOfFirst { it.uri == startTrackUri }.takeIf { it >= 0 } ?: 0
+            _state.value = PlaybackQueueState.Active(scan.tracks, currentIndex = startIndex)
         }
 
         override fun moveToNext() {
@@ -46,6 +49,16 @@ class PlaybackQueueImpl
             _state.update { current ->
                 if (current is PlaybackQueueState.Active && current.hasPrevious) {
                     current.copy(currentIndex = current.currentIndex - 1)
+                } else {
+                    current
+                }
+            }
+        }
+
+        override fun moveTo(index: Int) {
+            _state.update { current ->
+                if (current is PlaybackQueueState.Active && index in current.tracks.indices) {
+                    current.copy(currentIndex = index)
                 } else {
                     current
                 }

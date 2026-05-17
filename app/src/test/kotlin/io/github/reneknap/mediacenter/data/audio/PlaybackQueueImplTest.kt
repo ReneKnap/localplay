@@ -275,4 +275,112 @@ class PlaybackQueueImplTest {
             assertEquals(tracksB, state.tracks)
             assertEquals(0, state.currentIndex)
         }
+
+    @Test
+    fun `setQueue with startTrackUri matching track sets currentIndex`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"), track("$folderUri/c"))
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+
+            val q = queue()
+            q.setQueue(folderUri, startTrackUri = "$folderUri/b")
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(1, state.currentIndex)
+            assertSame(tracks[1], state.current)
+        }
+
+    @Test
+    fun `setQueue with startTrackUri not matching any track falls back to index 0`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"))
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+
+            val q = queue()
+            q.setQueue(folderUri, startTrackUri = "$folderUri/does-not-exist")
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(0, state.currentIndex)
+        }
+
+    @Test
+    fun `setQueue with startTrackUri null uses index 0`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"))
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+
+            val q = queue()
+            q.setQueue(folderUri, startTrackUri = null)
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(0, state.currentIndex)
+        }
+
+    @Test
+    fun `setQueue with startTrackUri on unreachable folder yields Empty`() =
+        runTest {
+            val folderUri = "content://music/gone"
+            audioRepo.emit(listOf(unreachable(folderUri)))
+
+            val q = queue()
+            q.setQueue(folderUri, startTrackUri = "$folderUri/anything")
+
+            assertEquals(PlaybackQueueState.Empty, q.state.value)
+        }
+
+    @Test
+    fun `moveTo with valid index updates currentIndex`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"), track("$folderUri/c"))
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+
+            val q = queue()
+            q.setQueue(folderUri)
+            q.moveTo(2)
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(2, state.currentIndex)
+            assertSame(tracks[2], state.current)
+        }
+
+    @Test
+    fun `moveTo with negative index is no-op`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"))
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+
+            val q = queue()
+            q.setQueue(folderUri)
+            val before = q.state.value
+            q.moveTo(-1)
+
+            assertEquals(before, q.state.value)
+        }
+
+    @Test
+    fun `moveTo with index equal to size is no-op`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"))
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+
+            val q = queue()
+            q.setQueue(folderUri)
+            val before = q.state.value
+            q.moveTo(tracks.size)
+
+            assertEquals(before, q.state.value)
+        }
+
+    @Test
+    fun `moveTo on Empty queue is no-op`() {
+        val q = queue()
+        q.moveTo(0)
+        assertEquals(PlaybackQueueState.Empty, q.state.value)
+    }
 }
