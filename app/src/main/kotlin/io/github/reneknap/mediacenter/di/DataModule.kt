@@ -15,6 +15,8 @@ import io.github.reneknap.mediacenter.data.audio.AudioFileScanner
 import io.github.reneknap.mediacenter.data.audio.AudioFileScannerImpl
 import io.github.reneknap.mediacenter.data.audio.AudioRepository
 import io.github.reneknap.mediacenter.data.audio.AudioRepositoryImpl
+import io.github.reneknap.mediacenter.data.audio.PlaybackQueue
+import io.github.reneknap.mediacenter.data.audio.PlaybackQueueImpl
 import io.github.reneknap.mediacenter.data.audio.TagReader
 import io.github.reneknap.mediacenter.data.audio.TagReaderImpl
 import io.github.reneknap.mediacenter.data.folder.FolderAccess
@@ -52,6 +54,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindAudioRepository(impl: AudioRepositoryImpl): AudioRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPlaybackQueue(impl: PlaybackQueueImpl): PlaybackQueue
 
     companion object {
         @Provides

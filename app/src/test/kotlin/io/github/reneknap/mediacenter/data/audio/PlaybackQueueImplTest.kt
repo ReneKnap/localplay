@@ -1,0 +1,278 @@
+package io.github.reneknap.mediacenter.data.audio
+
+import io.github.reneknap.mediacenter.data.folder.FolderEntry
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class PlaybackQueueImplTest {
+    private lateinit var audioRepo: FakeAudioRepository
+
+    @Before
+    fun setUp() {
+        audioRepo = FakeAudioRepository()
+    }
+
+    private fun queue(): PlaybackQueueImpl = PlaybackQueueImpl(audioRepository = audioRepo)
+
+    private fun track(
+        uri: String,
+        title: String = uri.substringAfterLast('/'),
+    ): AudioTrack =
+        AudioTrack(
+            uri = uri,
+            folderUri = uri.substringBeforeLast('/'),
+            displayName = "$title.mp3",
+            mimeType = "audio/mpeg",
+            sizeBytes = 0L,
+            title = title,
+            artist = null,
+            album = null,
+            durationMs = 0L,
+        )
+
+    private fun ready(
+        folderUri: String,
+        tracks: List<AudioTrack>,
+    ): FolderTracks =
+        FolderTracks(
+            folder = FolderEntry(folderUri, folderUri.substringAfterLast('/'), isReachable = true),
+            scan = FolderScanState.Ready(tracks),
+        )
+
+    private fun scanning(folderUri: String): FolderTracks =
+        FolderTracks(
+            folder = FolderEntry(folderUri, folderUri.substringAfterLast('/'), isReachable = true),
+            scan = FolderScanState.Scanning,
+        )
+
+    private fun unreachable(folderUri: String): FolderTracks =
+        FolderTracks(
+            folder = FolderEntry(folderUri, folderUri.substringAfterLast('/'), isReachable = false),
+            scan = FolderScanState.Unreachable,
+        )
+
+    @Test
+    fun `initial state is Empty`() {
+        val q = queue()
+        assertEquals(PlaybackQueueState.Empty, q.state.value)
+    }
+
+    @Test
+    fun `setQueue on Ready folder yields Active with currentIndex zero`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"), track("$folderUri/c"))
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+
+            val q = queue()
+            q.setQueue(folderUri)
+
+            val state = q.state.value
+            assertTrue(state is PlaybackQueueState.Active)
+            val active = state as PlaybackQueueState.Active
+            assertEquals(tracks, active.tracks)
+            assertEquals(0, active.currentIndex)
+            assertSame(tracks[0], active.current)
+            assertTrue(active.hasNext)
+            assertTrue(!active.hasPrevious)
+        }
+
+    @Test
+    fun `setQueue on Scanning folder yields Empty`() =
+        runTest {
+            val folderUri = "content://music/still-scanning"
+            audioRepo.emit(listOf(scanning(folderUri)))
+
+            val q = queue()
+            q.setQueue(folderUri)
+
+            assertEquals(PlaybackQueueState.Empty, q.state.value)
+        }
+
+    @Test
+    fun `setQueue on Unreachable folder yields Empty`() =
+        runTest {
+            val folderUri = "content://music/gone"
+            audioRepo.emit(listOf(unreachable(folderUri)))
+
+            val q = queue()
+            q.setQueue(folderUri)
+
+            assertEquals(PlaybackQueueState.Empty, q.state.value)
+        }
+
+    @Test
+    fun `setQueue on Ready folder with empty tracks yields Empty`() =
+        runTest {
+            val folderUri = "content://music/empty"
+            audioRepo.emit(listOf(ready(folderUri, emptyList())))
+
+            val q = queue()
+            q.setQueue(folderUri)
+
+            assertEquals(PlaybackQueueState.Empty, q.state.value)
+        }
+
+    @Test
+    fun `setQueue on unknown folder uri yields Empty`() =
+        runTest {
+            audioRepo.emit(listOf(ready("content://music/other", listOf(track("content://music/other/x")))))
+
+            val q = queue()
+            q.setQueue("content://music/does-not-exist")
+
+            assertEquals(PlaybackQueueState.Empty, q.state.value)
+        }
+
+    @Test
+    fun `moveToNext on Active with hasNext advances currentIndex`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"), track("$folderUri/c"))
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+
+            val q = queue()
+            q.setQueue(folderUri)
+            q.moveToNext()
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(1, state.currentIndex)
+            assertSame(tracks[1], state.current)
+            assertTrue(state.hasPrevious)
+            assertTrue(state.hasNext)
+        }
+
+    @Test
+    fun `moveToNext on Active at last index is no-op`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"))
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+
+            val q = queue()
+            q.setQueue(folderUri)
+            q.moveToNext() // index 1, last
+            val before = q.state.value
+            q.moveToNext() // no-op
+
+            assertEquals(before, q.state.value)
+            assertEquals(1, (q.state.value as PlaybackQueueState.Active).currentIndex)
+        }
+
+    @Test
+    fun `moveToPrevious on Active with hasPrevious decreases currentIndex`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"), track("$folderUri/c"))
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+
+            val q = queue()
+            q.setQueue(folderUri)
+            q.moveToNext()
+            q.moveToNext() // index 2
+            q.moveToPrevious() // back to 1
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(1, state.currentIndex)
+            assertSame(tracks[1], state.current)
+        }
+
+    @Test
+    fun `moveToPrevious on Active at first index is no-op`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"))
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+
+            val q = queue()
+            q.setQueue(folderUri)
+            val before = q.state.value
+            q.moveToPrevious() // no-op
+
+            assertEquals(before, q.state.value)
+            assertEquals(0, (q.state.value as PlaybackQueueState.Active).currentIndex)
+        }
+
+    @Test
+    fun `move methods on Empty are no-op`() {
+        val q = queue()
+        q.moveToNext()
+        q.moveToPrevious()
+        assertEquals(PlaybackQueueState.Empty, q.state.value)
+    }
+
+    @Test
+    fun `clear from Active returns to Empty`() =
+        runTest {
+            val folderUri = "content://music/album"
+            audioRepo.emit(listOf(ready(folderUri, listOf(track("$folderUri/a")))))
+
+            val q = queue()
+            q.setQueue(folderUri)
+            q.clear()
+
+            assertEquals(PlaybackQueueState.Empty, q.state.value)
+        }
+
+    @Test
+    fun `snapshot — repository change to same folder does not mutate active queue`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val initialTracks = listOf(track("$folderUri/a"), track("$folderUri/b"))
+            audioRepo.emit(listOf(ready(folderUri, initialTracks)))
+
+            val q = queue()
+            q.setQueue(folderUri)
+
+            // Repository now emits a *different* track list for the same folder.
+            val newTracks = listOf(track("$folderUri/x"), track("$folderUri/y"), track("$folderUri/z"))
+            audioRepo.emit(listOf(ready(folderUri, newTracks)))
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(initialTracks, state.tracks)
+            assertEquals(0, state.currentIndex)
+        }
+
+    @Test
+    fun `snapshot — repository eviction of source folder does not mutate active queue`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = listOf(track("$folderUri/a"))
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+
+            val q = queue()
+            q.setQueue(folderUri)
+
+            // Folder is removed from the repository entirely.
+            audioRepo.emit(emptyList())
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(tracks, state.tracks)
+            assertEquals(0, state.currentIndex)
+        }
+
+    @Test
+    fun `setQueue replaces queue wholesale across folders`() =
+        runTest {
+            val uriA = "content://music/a"
+            val uriB = "content://music/b"
+            val tracksA = listOf(track("$uriA/1"), track("$uriA/2"))
+            val tracksB = listOf(track("$uriB/1"))
+            audioRepo.emit(listOf(ready(uriA, tracksA), ready(uriB, tracksB)))
+
+            val q = queue()
+            q.setQueue(uriA)
+            q.moveToNext() // currentIndex = 1 in A
+            q.setQueue(uriB)
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(tracksB, state.tracks)
+            assertEquals(0, state.currentIndex)
+        }
+}
