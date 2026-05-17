@@ -2,6 +2,9 @@
 .claude/
 CLAUDE.md
 
+# Per-project PowerShell background color (personal terminal tint)
+.pscolor
+
 # Built output
 build/
 **/build/
