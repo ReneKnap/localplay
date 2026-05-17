@@ -12,14 +12,16 @@ private val Purple80 = Color(0xFFD0BCFF)
 private val PurpleGrey80 = Color(0xFFCCC2DC)
 private val Pink80 = Color(0xFFEFB8C8)
 
-val MediaCenterLightColors = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40,
-)
+val MediaCenterLightColors =
+    lightColorScheme(
+        primary = Purple40,
+        secondary = PurpleGrey40,
+        tertiary = Pink40,
+    )
 
-val MediaCenterDarkColors = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80,
-)
+val MediaCenterDarkColors =
+    darkColorScheme(
+        primary = Purple80,
+        secondary = PurpleGrey80,
+        tertiary = Pink80,
+    )

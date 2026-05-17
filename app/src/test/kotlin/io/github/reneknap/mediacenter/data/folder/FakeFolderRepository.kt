@@ -7,7 +7,6 @@ import kotlinx.coroutines.flow.asStateFlow
 class FakeFolderRepository(
     initial: List<FolderEntry> = emptyList(),
 ) : FolderRepository {
-
     private val state = MutableStateFlow(initial)
 
     val addedFolders: MutableList<String> = mutableListOf()

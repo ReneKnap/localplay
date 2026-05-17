@@ -17,12 +17,13 @@ fun MediaCenterTheme(
     val supportsDynamic = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val context = LocalContext.current
 
-    val colorScheme = when {
-        useDynamicColor && supportsDynamic && useDarkTheme -> dynamicDarkColorScheme(context)
-        useDynamicColor && supportsDynamic && !useDarkTheme -> dynamicLightColorScheme(context)
-        useDarkTheme -> MediaCenterDarkColors
-        else -> MediaCenterLightColors
-    }
+    val colorScheme =
+        when {
+            useDynamicColor && supportsDynamic && useDarkTheme -> dynamicDarkColorScheme(context)
+            useDynamicColor && supportsDynamic && !useDarkTheme -> dynamicLightColorScheme(context)
+            useDarkTheme -> MediaCenterDarkColors
+            else -> MediaCenterLightColors
+        }
 
     MaterialTheme(
         colorScheme = colorScheme,

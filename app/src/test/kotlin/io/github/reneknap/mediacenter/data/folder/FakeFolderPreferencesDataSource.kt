@@ -7,7 +7,6 @@ import kotlinx.coroutines.flow.asStateFlow
 class FakeFolderPreferencesDataSource(
     initial: List<FolderEntry> = emptyList(),
 ) : FolderPreferencesDataSource {
-
     private val state = MutableStateFlow(initial)
 
     override val folders: Flow<List<FolderEntry>> = state.asStateFlow()
