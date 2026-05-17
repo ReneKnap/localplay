@@ -8,4 +8,9 @@
     <string name="home_add_folder">Add folder</string>
     <string name="home_remove_folder">Remove folder</string>
     <string name="home_folder_not_accessible">Folder not accessible</string>
+    <string name="home_folder_scanning">Scanning…</string>
+    <string name="home_folder_no_audio">No audio files</string>
+    <string name="home_folder_track_count">%1$d tracks</string>
+    <string name="home_folder_track_count_one">1 track</string>
+    <string name="home_track_unknown_duration">—</string>
 </resources>

@@ -32,17 +32,18 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.reneknap.mediacenter.R
-import io.github.reneknap.mediacenter.data.folder.FolderEntry
+import io.github.reneknap.mediacenter.data.audio.FolderTracks
 
 @Composable
 fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    val pickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree(),
-    ) { uri ->
-        uri?.let { viewModel.addFolder(it.toString()) }
-    }
+    val pickerLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.OpenDocumentTree(),
+        ) { uri ->
+            uri?.let { viewModel.addFolder(it.toString()) }
+        }
 
     HomeContent(
         uiState = uiState,
@@ -74,17 +75,19 @@ private fun HomeContent(
         },
     ) { innerPadding ->
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
         ) {
             when (uiState) {
                 HomeUiState.Loading -> LoadingState()
                 HomeUiState.Empty -> EmptyState(onPickFolder = onPickFolder)
-                is HomeUiState.Folders -> FolderList(
-                    folders = uiState.items,
-                    onRemove = onRemoveFolder,
-                )
+                is HomeUiState.Folders ->
+                    FolderList(
+                        folders = uiState.items,
+                        onRemove = onRemoveFolder,
+                    )
             }
         }
     }
@@ -103,9 +106,10 @@ private fun LoadingState() {
 @Composable
 private fun EmptyState(onPickFolder: () -> Unit) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -128,14 +132,14 @@ private fun EmptyState(onPickFolder: () -> Unit) {
 
 @Composable
 private fun FolderList(
-    folders: List<FolderEntry>,
+    folders: List<FolderTracks>,
     onRemove: (String) -> Unit,
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        items(items = folders, key = { it.uri }) { folder ->
+        items(items = folders, key = { it.folder.uri }) { folderTracks ->
             FolderListItem(
-                folder = folder,
-                onRemove = { onRemove(folder.uri) },
+                folderTracks = folderTracks,
+                onRemove = { onRemove(folderTracks.folder.uri) },
             )
         }
     }
