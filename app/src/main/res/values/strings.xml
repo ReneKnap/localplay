@@ -13,4 +13,15 @@
     <string name="home_folder_track_count">%1$d tracks</string>
     <string name="home_folder_track_count_one">1 track</string>
     <string name="home_track_unknown_duration">—</string>
+
+    <string name="player_back">Back</string>
+    <string name="player_play">Play</string>
+    <string name="player_pause">Pause</string>
+    <string name="player_next">Next track</string>
+    <string name="player_previous">Previous track</string>
+    <string name="player_folder_unavailable">Folder not available</string>
+    <string name="player_no_track_hint">Tap a track and press play, or press play to start with the first track</string>
+    <string name="player_now_playing_content_description">Now playing</string>
+    <string name="player_unknown_track">Unknown track</string>
+    <string name="player_remaining_time">-%1$d:%2$02d</string>
 </resources>
