@@ -11,6 +11,12 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import io.github.reneknap.mediacenter.data.audio.AudioFileScanner
+import io.github.reneknap.mediacenter.data.audio.AudioFileScannerImpl
+import io.github.reneknap.mediacenter.data.audio.AudioRepository
+import io.github.reneknap.mediacenter.data.audio.AudioRepositoryImpl
+import io.github.reneknap.mediacenter.data.audio.TagReader
+import io.github.reneknap.mediacenter.data.audio.TagReaderImpl
 import io.github.reneknap.mediacenter.data.folder.FolderAccess
 import io.github.reneknap.mediacenter.data.folder.FolderAccessImpl
 import io.github.reneknap.mediacenter.data.folder.FolderPreferencesDataSource
@@ -23,23 +29,31 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class DataModule {
-
     @Binds
     @Singleton
     abstract fun bindFolderRepository(impl: FolderRepositoryImpl): FolderRepository
 
     @Binds
     @Singleton
-    abstract fun bindFolderPreferencesDataSource(
-        impl: FolderPreferencesDataSourceImpl,
-    ): FolderPreferencesDataSource
+    abstract fun bindFolderPreferencesDataSource(impl: FolderPreferencesDataSourceImpl): FolderPreferencesDataSource
 
     @Binds
     @Singleton
     abstract fun bindFolderAccess(impl: FolderAccessImpl): FolderAccess
 
-    companion object {
+    @Binds
+    @Singleton
+    abstract fun bindAudioFileScanner(impl: AudioFileScannerImpl): AudioFileScanner
 
+    @Binds
+    @Singleton
+    abstract fun bindTagReader(impl: TagReaderImpl): TagReader
+
+    @Binds
+    @Singleton
+    abstract fun bindAudioRepository(impl: AudioRepositoryImpl): AudioRepository
+
+    companion object {
         @Provides
         @Singleton
         fun provideDataStore(
@@ -51,8 +65,9 @@ abstract class DataModule {
 
         @Provides
         @Singleton
-        fun provideJson(): Json = Json {
-            ignoreUnknownKeys = true
-        }
+        fun provideJson(): Json =
+            Json {
+                ignoreUnknownKeys = true
+            }
     }
 }
