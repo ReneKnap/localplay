@@ -1,12 +1,19 @@
 package io.github.reneknap.mediacenter.ui
 
+import android.net.Uri
 import androidx.compose.runtime.Composable
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import io.github.reneknap.mediacenter.ui.home.HomeScreen
+import io.github.reneknap.mediacenter.ui.player.FolderPlayerScreen
 
 private const val ROUTE_HOME = "home"
+private const val ARG_FOLDER_URI = "folderUri"
+private const val ARG_START_TRACK_URI = "startTrackUri"
+private const val ROUTE_FOLDER = "folder/{$ARG_FOLDER_URI}?$ARG_START_TRACK_URI={$ARG_START_TRACK_URI}"
 
 @Composable
 fun MediaCenterNavGraph() {
@@ -16,7 +23,32 @@ fun MediaCenterNavGraph() {
         startDestination = ROUTE_HOME,
     ) {
         composable(ROUTE_HOME) {
-            HomeScreen()
+            HomeScreen(
+                onFolderClick = { folderUri ->
+                    navController.navigate("folder/${Uri.encode(folderUri)}")
+                },
+                onPreviewTrackClick = { folderUri, trackUri ->
+                    navController.navigate(
+                        "folder/${Uri.encode(folderUri)}?$ARG_START_TRACK_URI=${Uri.encode(trackUri)}",
+                    )
+                },
+            )
+        }
+        composable(
+            route = ROUTE_FOLDER,
+            arguments =
+                listOf(
+                    navArgument(ARG_FOLDER_URI) { type = NavType.StringType },
+                    navArgument(ARG_START_TRACK_URI) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+        ) {
+            FolderPlayerScreen(
+                onBack = { navController.popBackStack() },
+            )
         }
     }
 }

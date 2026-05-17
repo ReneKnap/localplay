@@ -35,7 +35,11 @@ import io.github.reneknap.mediacenter.R
 import io.github.reneknap.mediacenter.data.audio.FolderTracks
 
 @Composable
-fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
+fun HomeScreen(
+    onFolderClick: (String) -> Unit,
+    onPreviewTrackClick: (folderUri: String, trackUri: String) -> Unit,
+    viewModel: HomeViewModel = hiltViewModel(),
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     val pickerLauncher =
@@ -49,6 +53,8 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
         uiState = uiState,
         onPickFolder = { pickerLauncher.launch(null) },
         onRemoveFolder = viewModel::removeFolder,
+        onFolderClick = onFolderClick,
+        onPreviewTrackClick = onPreviewTrackClick,
     )
 }
 
@@ -58,6 +64,8 @@ private fun HomeContent(
     uiState: HomeUiState,
     onPickFolder: () -> Unit,
     onRemoveFolder: (String) -> Unit,
+    onFolderClick: (String) -> Unit,
+    onPreviewTrackClick: (folderUri: String, trackUri: String) -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -87,6 +95,8 @@ private fun HomeContent(
                     FolderList(
                         folders = uiState.items,
                         onRemove = onRemoveFolder,
+                        onFolderClick = onFolderClick,
+                        onPreviewTrackClick = onPreviewTrackClick,
                     )
             }
         }
@@ -134,12 +144,16 @@ private fun EmptyState(onPickFolder: () -> Unit) {
 private fun FolderList(
     folders: List<FolderTracks>,
     onRemove: (String) -> Unit,
+    onFolderClick: (String) -> Unit,
+    onPreviewTrackClick: (folderUri: String, trackUri: String) -> Unit,
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         items(items = folders, key = { it.folder.uri }) { folderTracks ->
             FolderListItem(
                 folderTracks = folderTracks,
                 onRemove = { onRemove(folderTracks.folder.uri) },
+                onFolderClick = { onFolderClick(folderTracks.folder.uri) },
+                onPreviewTrackClick = { trackUri -> onPreviewTrackClick(folderTracks.folder.uri, trackUri) },
             )
         }
     }

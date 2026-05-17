@@ -4,8 +4,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
@@ -26,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.reneknap.mediacenter.R
 import io.github.reneknap.mediacenter.data.audio.AudioTrack
@@ -37,6 +40,8 @@ import java.util.Locale
 fun FolderListItem(
     folderTracks: FolderTracks,
     onRemove: () -> Unit,
+    onFolderClick: () -> Unit,
+    onPreviewTrackClick: (trackUri: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember(folderTracks.folder.uri) { mutableStateOf(false) }
@@ -46,7 +51,7 @@ fun FolderListItem(
 
     Column(modifier = modifier.fillMaxWidth()) {
         ListItem(
-            modifier = if (canExpand) Modifier.clickable { expanded = !expanded } else Modifier,
+            modifier = Modifier.clickable(onClick = onFolderClick),
             headlineContent = { Text(folder.displayName) },
             supportingContent = { ScanSummary(folderTracks.scan) },
             leadingContent = {
@@ -67,10 +72,12 @@ fun FolderListItem(
                     horizontalArrangement = Arrangement.End,
                 ) {
                     if (canExpand) {
-                        Icon(
-                            imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                            contentDescription = null,
-                        )
+                        IconButton(onClick = { expanded = !expanded }) {
+                            Icon(
+                                imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                contentDescription = null,
+                            )
+                        }
                     }
                     IconButton(onClick = onRemove) {
                         Icon(
@@ -82,7 +89,12 @@ fun FolderListItem(
             },
         )
         if (expanded && tracks.isNotEmpty()) {
-            tracks.forEach { track -> TrackRow(track) }
+            tracks.forEach { track ->
+                PreviewTrackRow(
+                    track = track,
+                    onClick = { onPreviewTrackClick(track.uri) },
+                )
+            }
             HorizontalDivider()
         }
     }
@@ -110,22 +122,31 @@ private fun trackCountLabel(count: Int): String =
     }
 
 @Composable
-private fun TrackRow(track: AudioTrack) {
-    ListItem(
-        modifier = Modifier.padding(start = 32.dp),
-        headlineContent = {
-            Text(
-                text = track.title,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        },
-        supportingContent = {
-            Text(
-                text = formatDuration(track.durationMs),
-                style = MaterialTheme.typography.bodySmall,
-            )
-        },
-    )
+private fun PreviewTrackRow(
+    track: AudioTrack,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(start = 56.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = track.title,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(modifier = Modifier.size(8.dp))
+        Text(
+            text = formatDuration(track.durationMs),
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
 }
 
 @Composable
