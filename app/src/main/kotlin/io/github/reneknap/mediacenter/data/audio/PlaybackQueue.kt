@@ -17,4 +17,6 @@ interface PlaybackQueue {
     fun moveTo(index: Int)
 
     fun clear()
+
+    fun setShuffleEnabled(enabled: Boolean)
 }

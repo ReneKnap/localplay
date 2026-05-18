@@ -4,10 +4,12 @@ import io.github.reneknap.mediacenter.data.folder.FolderEntry
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import kotlin.random.Random
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlaybackQueueImplTest {
@@ -18,7 +20,8 @@ class PlaybackQueueImplTest {
         audioRepo = FakeAudioRepository()
     }
 
-    private fun queue(): PlaybackQueueImpl = PlaybackQueueImpl(audioRepository = audioRepo)
+    private fun queue(random: Random = Random.Default): PlaybackQueueImpl =
+        PlaybackQueueImpl(audioRepository = audioRepo, random = random)
 
     private fun track(
         uri: String,
@@ -383,4 +386,137 @@ class PlaybackQueueImplTest {
         q.moveTo(0)
         assertEquals(PlaybackQueueState.Empty, q.state.value)
     }
+
+    @Test
+    fun `setQueue creates Active with sequential playback order and shuffle disabled`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"), track("$folderUri/c"))
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+
+            val q = queue()
+            q.setQueue(folderUri)
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(listOf(0, 1, 2), state.playbackOrder)
+            assertEquals(false, state.shuffleEnabled)
+        }
+
+    @Test
+    fun `setShuffleEnabled true anchors current track at order position 0 and permutes the rest`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (1..5).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue(Random(42L))
+            q.setQueue(folderUri)
+            q.moveTo(2)
+
+            q.setShuffleEnabled(enabled = true)
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(2, state.currentIndex)
+            assertEquals(2, state.playbackOrder[0])
+            assertEquals(setOf(0, 1, 3, 4), state.playbackOrder.drop(1).toSet())
+            assertEquals(true, state.shuffleEnabled)
+        }
+
+    @Test
+    fun `setShuffleEnabled false resets order to identity and keeps currentIndex on same track`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (1..5).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue(Random(42L))
+            q.setQueue(folderUri)
+            q.moveTo(2)
+            q.setShuffleEnabled(enabled = true)
+            val currentTrackBefore = (q.state.value as PlaybackQueueState.Active).current
+
+            q.setShuffleEnabled(enabled = false)
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(listOf(0, 1, 2, 3, 4), state.playbackOrder)
+            assertEquals(false, state.shuffleEnabled)
+            assertSame(currentTrackBefore, state.current)
+        }
+
+    @Test
+    fun `moveToNext during shuffle traverses playback order not tracks order`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (1..5).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue(Random(42L))
+            q.setQueue(folderUri)
+            q.setShuffleEnabled(enabled = true)
+            val orderBefore = (q.state.value as PlaybackQueueState.Active).playbackOrder
+
+            q.moveToNext()
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(orderBefore[1], state.currentIndex)
+        }
+
+    @Test
+    fun `moveToPrevious during shuffle traverses playback order back`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (1..5).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue(Random(42L))
+            q.setQueue(folderUri)
+            q.setShuffleEnabled(enabled = true)
+            q.moveToNext()
+            q.moveToNext()
+            val orderBefore = (q.state.value as PlaybackQueueState.Active).playbackOrder
+
+            q.moveToPrevious()
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(orderBefore[1], state.currentIndex)
+        }
+
+    @Test
+    fun `moveTo during shuffle changes currentIndex but keeps playback order stable`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (1..5).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue(Random(42L))
+            q.setQueue(folderUri)
+            q.setShuffleEnabled(enabled = true)
+            val orderBefore = (q.state.value as PlaybackQueueState.Active).playbackOrder
+
+            q.moveTo(3)
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(3, state.currentIndex)
+            assertEquals(orderBefore, state.playbackOrder)
+            assertEquals(true, state.shuffleEnabled)
+        }
+
+    @Test
+    fun `setShuffleEnabled on Empty queue is no-op`() {
+        val q = queue()
+        q.setShuffleEnabled(enabled = true)
+        assertEquals(PlaybackQueueState.Empty, q.state.value)
+    }
+
+    @Test
+    fun `shuffle produces a non-identity order for a sufficiently long queue`() =
+        runTest {
+            // Sanity check that the seeded shuffle actually moves things around — without this
+            // the other shuffle tests could pass trivially against a no-op implementation.
+            val folderUri = "content://music/album"
+            val tracks = (1..8).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue(Random(42L))
+            q.setQueue(folderUri)
+
+            q.setShuffleEnabled(enabled = true)
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertNotEquals(tracks.indices.toList(), state.playbackOrder)
+        }
 }

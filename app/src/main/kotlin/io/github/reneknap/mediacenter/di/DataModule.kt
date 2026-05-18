@@ -27,6 +27,7 @@ import io.github.reneknap.mediacenter.data.folder.FolderRepository
 import io.github.reneknap.mediacenter.data.folder.FolderRepositoryImpl
 import kotlinx.serialization.json.Json
 import javax.inject.Singleton
+import kotlin.random.Random
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -60,6 +61,10 @@ abstract class DataModule {
     abstract fun bindPlaybackQueue(impl: PlaybackQueueImpl): PlaybackQueue
 
     companion object {
+        @Provides
+        @Singleton
+        fun provideRandom(): Random = Random.Default
+
         @Provides
         @Singleton
         fun provideDataStore(
