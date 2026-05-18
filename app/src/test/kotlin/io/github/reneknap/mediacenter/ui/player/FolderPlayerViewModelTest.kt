@@ -339,6 +339,74 @@ class FolderPlayerViewModelTest {
         }
 
     @Test
+    fun `toggleShuffle delegates to controller with negated current value`() =
+        runTest {
+            val folderUri = "content://music/a"
+            audioRepository.emit(listOf(readyFolder(folderUri, "A", listOf(track("$folderUri/1")))))
+            controller.emitStatus(PlayerStatus(shuffleEnabled = false))
+            val vm = viewModel(folderUri)
+            testScheduler.advanceUntilIdle()
+
+            vm.toggleShuffle()
+
+            assertEquals(listOf(true), controller.shuffleEnabledCalls)
+        }
+
+    @Test
+    fun `toggleShuffle from enabled state delegates false to controller`() =
+        runTest {
+            val folderUri = "content://music/a"
+            audioRepository.emit(listOf(readyFolder(folderUri, "A", listOf(track("$folderUri/1")))))
+            controller.emitStatus(PlayerStatus(shuffleEnabled = true))
+            val vm = viewModel(folderUri)
+            testScheduler.advanceUntilIdle()
+
+            vm.toggleShuffle()
+
+            assertEquals(listOf(false), controller.shuffleEnabledCalls)
+        }
+
+    @Test
+    fun `toggleShuffle anchors selected track via queue moveTo before enabling`() =
+        runTest {
+            val folderUri = "content://music/a"
+            val tracks = (1..5).map { track("$folderUri/$it") }
+            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            queue.setQueue(folderUri)
+            controller.emitStatus(PlayerStatus(shuffleEnabled = false))
+            val vm = viewModel(folderUri)
+            testScheduler.advanceUntilIdle()
+            vm.selectTrack(3)
+            testScheduler.advanceUntilIdle()
+
+            vm.toggleShuffle()
+
+            val state =
+                queue.state.value as io.github.reneknap.mediacenter.data.audio.PlaybackQueueState.Active
+            assertEquals(3, state.currentIndex)
+            assertEquals(listOf(true), controller.shuffleEnabledCalls)
+        }
+
+    @Test
+    fun `Ready state surfaces shuffleEnabled from controller status`() =
+        runTest {
+            val folderUri = "content://music/a"
+            val tracks = listOf(track("$folderUri/1"))
+            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val vm = viewModel(folderUri)
+            controller.emitStatus(PlayerStatus(shuffleEnabled = true))
+
+            vm.uiState.test {
+                var state: FolderPlayerUiState = awaitItem()
+                while (state !is FolderPlayerUiState.Ready || !state.shuffleEnabled) {
+                    state = awaitItem()
+                }
+                assertTrue(state.shuffleEnabled)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
     fun `Ready state status reflects controller status flow`() =
         runTest {
             val folderUri = "content://music/a"

@@ -99,6 +99,14 @@ class FolderPlayerViewModel
             controller.previous()
         }
 
+        fun toggleShuffle() {
+            val enabling = !controller.status.value.shuffleEnabled
+            if (enabling) {
+                selectedIndex.value?.let { queue.moveTo(it) }
+            }
+            controller.setShuffleEnabled(enabling)
+        }
+
         private fun project(
             folders: List<FolderTracks>,
             queueState: PlaybackQueueState,
@@ -109,21 +117,30 @@ class FolderPlayerViewModel
             return when (val scan = target.scan) {
                 FolderScanState.Scanning -> FolderPlayerUiState.Loading
                 FolderScanState.Unreachable -> FolderPlayerUiState.NotAvailable
-                is FolderScanState.Ready ->
+                is FolderScanState.Ready -> {
+                    val active = activeForFolder(queueState)
                     FolderPlayerUiState.Ready(
                         folderName = target.folder.displayName,
                         tracks = scan.tracks,
-                        currentIndex = currentIndexFor(queueState),
+                        displayOrder = active?.playbackOrder ?: scan.tracks.indices.toList(),
+                        currentIndex = active?.currentIndex,
                         selectedIndex = selected,
                         status = status,
+                        shuffleEnabled = status.shuffleEnabled,
+                        hasNext = active?.hasNext ?: false,
+                        hasPrevious = active?.hasPrevious ?: false,
                     )
+                }
             }
         }
 
-        private fun currentIndexFor(queueState: PlaybackQueueState): Int? {
+        private fun currentIndexFor(queueState: PlaybackQueueState): Int? =
+            activeForFolder(queueState)?.currentIndex
+
+        private fun activeForFolder(queueState: PlaybackQueueState): PlaybackQueueState.Active? {
             val active = queueState as? PlaybackQueueState.Active ?: return null
             if (active.tracks.firstOrNull()?.folderUri != folderUri) return null
-            return active.currentIndex
+            return active
         }
 
         private companion object {

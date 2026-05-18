@@ -24,4 +24,6 @@
     <string name="player_now_playing_content_description">Now playing</string>
     <string name="player_unknown_track">Unknown track</string>
     <string name="player_remaining_time">-%1$d:%2$02d</string>
+    <string name="player_shuffle_on">Shuffle on</string>
+    <string name="player_shuffle_off">Shuffle off</string>
 </resources>
