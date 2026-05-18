@@ -14,4 +14,6 @@ interface PlaybackController {
     fun next()
 
     fun previous()
+
+    fun setShuffleEnabled(enabled: Boolean)
 }

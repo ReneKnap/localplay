@@ -7,7 +7,9 @@ import io.github.reneknap.mediacenter.data.audio.FolderTracks
 import io.github.reneknap.mediacenter.data.audio.PlaybackQueueImpl
 import io.github.reneknap.mediacenter.data.audio.PlaybackQueueState
 import io.github.reneknap.mediacenter.data.folder.FolderEntry
+import io.github.reneknap.mediacenter.data.playback.FakePlaybackPreferencesDataSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -18,24 +20,28 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import kotlin.random.Random
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlaybackControllerImplTest {
     private lateinit var audioRepo: FakeAudioRepository
     private lateinit var queue: PlaybackQueueImpl
     private lateinit var engine: FakeMediaEngine
+    private lateinit var playbackPrefs: FakePlaybackPreferencesDataSource
 
     @Before
     fun setUp() {
         audioRepo = FakeAudioRepository()
-        queue = PlaybackQueueImpl(audioRepository = audioRepo)
+        queue = PlaybackQueueImpl(audioRepository = audioRepo, random = Random(42L))
         engine = FakeMediaEngine()
+        playbackPrefs = FakePlaybackPreferencesDataSource()
     }
 
     private fun controller(scope: TestScope): PlaybackControllerImpl =
         PlaybackControllerImpl(
             queue = queue,
             engine = engine,
+            playbackPreferences = playbackPrefs,
             scope = TestScope(UnconfinedTestDispatcher(scope.testScheduler)),
         )
 
@@ -325,5 +331,65 @@ class PlaybackControllerImplTest {
             assertTrue(s.isPlaying)
             assertEquals(60_000L, s.durationMs)
             assertEquals(12_345L, s.positionMs)
+        }
+
+    @Test
+    fun `bootstrap applies persisted shuffle preference to queue when preparing folder`() =
+        runTest {
+            playbackPrefs = FakePlaybackPreferencesDataSource(initial = true)
+            val folderUri = "content://music/a"
+            val tracks = (1..5).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val c = controller(this)
+
+            c.prepareFolder(folderUri)
+            testScheduler.advanceUntilIdle()
+
+            val state = queue.state.value as PlaybackQueueState.Active
+            assertEquals(true, state.shuffleEnabled)
+        }
+
+    @Test
+    fun `setShuffleEnabled writes value to preferences`() =
+        runTest {
+            val folderUri = "content://music/a"
+            val tracks = listOf(track("$folderUri/1"), track("$folderUri/2"))
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val c = controller(this)
+            c.prepareFolder(folderUri)
+
+            c.setShuffleEnabled(true)
+            testScheduler.advanceUntilIdle()
+
+            assertEquals(true, playbackPrefs.shuffleEnabled.first())
+        }
+
+    @Test
+    fun `setShuffleEnabled anchors current track at order position 0`() =
+        runTest {
+            val folderUri = "content://music/a"
+            val tracks = (1..5).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val c = controller(this)
+            c.prepareFolder(folderUri)
+            c.playAtIndex(2)
+
+            c.setShuffleEnabled(true)
+            testScheduler.advanceUntilIdle()
+
+            val state = queue.state.value as PlaybackQueueState.Active
+            assertEquals(true, state.shuffleEnabled)
+            assertEquals(2, state.currentIndex)
+            assertEquals(2, state.playbackOrder[0])
+        }
+
+    @Test
+    fun `status flow exposes shuffleEnabled from preferences`() =
+        runTest {
+            playbackPrefs = FakePlaybackPreferencesDataSource(initial = true)
+            val c = controller(this)
+            testScheduler.advanceUntilIdle()
+
+            assertEquals(true, c.status.value.shuffleEnabled)
         }
 }
