@@ -134,8 +134,7 @@ class FolderPlayerViewModel
             }
         }
 
-        private fun currentIndexFor(queueState: PlaybackQueueState): Int? =
-            activeForFolder(queueState)?.currentIndex
+        private fun currentIndexFor(queueState: PlaybackQueueState): Int? = activeForFolder(queueState)?.currentIndex
 
         private fun activeForFolder(queueState: PlaybackQueueState): PlaybackQueueState.Active? {
             val active = queueState as? PlaybackQueueState.Active ?: return null

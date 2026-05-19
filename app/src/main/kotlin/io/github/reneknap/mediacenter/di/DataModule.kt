@@ -64,7 +64,9 @@ abstract class DataModule {
 
     @Binds
     @Singleton
-    abstract fun bindPlaybackPreferencesDataSource(impl: PlaybackPreferencesDataSourceImpl): PlaybackPreferencesDataSource
+    abstract fun bindPlaybackPreferencesDataSource(
+        impl: PlaybackPreferencesDataSourceImpl,
+    ): PlaybackPreferencesDataSource
 
     companion object {
         @Provides
