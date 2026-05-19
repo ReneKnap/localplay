@@ -4,7 +4,9 @@ import android.content.ComponentName
 import android.content.Context
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -40,10 +42,14 @@ class MediaEngineImpl
         private val _durationMs = MutableStateFlow(0L)
         override val durationMs: StateFlow<Long> = _durationMs.asStateFlow()
 
+        private val _currentMediaItemIndex = MutableStateFlow(0)
+        override val currentMediaItemIndex: StateFlow<Int> = _currentMediaItemIndex.asStateFlow()
+
+        private val _playWhenReady = MutableStateFlow(false)
+        override val playWhenReady: StateFlow<Boolean> = _playWhenReady.asStateFlow()
+
         private var controller: MediaController? = null
         private val pendingCommands = mutableListOf<(MediaController) -> Unit>()
-
-        private var trackEndedListener: (() -> Unit)? = null
 
         private val playerListener =
             object : Player.Listener {
@@ -56,9 +62,27 @@ class MediaEngineImpl
                     if (playbackState == Player.STATE_READY) {
                         _durationMs.value = active.duration.coerceAtLeast(0L)
                     }
+                    // End-of-playlist: reset playWhenReady so the next togglePlayPause is meaningful
+                    // (without this, the user-intent flag stays "true" while playback is actually stopped).
                     if (playbackState == Player.STATE_ENDED) {
-                        trackEndedListener?.invoke()
+                        active.playWhenReady = false
                     }
+                }
+
+                override fun onMediaItemTransition(
+                    mediaItem: MediaItem?,
+                    reason: Int,
+                ) {
+                    val active = controller ?: return
+                    _currentMediaItemIndex.value = active.currentMediaItemIndex
+                    _positionMs.value = 0L
+                }
+
+                override fun onPlayWhenReadyChanged(
+                    playWhenReady: Boolean,
+                    reason: Int,
+                ) {
+                    _playWhenReady.value = playWhenReady
                 }
             }
 
@@ -73,26 +97,36 @@ class MediaEngineImpl
             }
         }
 
-        override fun loadTrack(
-            track: AudioTrack,
+        override fun setQueue(
+            items: List<AudioTrack>,
+            startIndex: Int,
             playWhenReady: Boolean,
         ) {
+            val mediaItems = items.map { it.toMediaItem() }
             withController { c ->
-                c.setMediaItem(MediaItem.fromUri(track.uri.toUri()))
+                c.setMediaItems(mediaItems, startIndex, C.TIME_UNSET)
                 c.prepare()
                 c.playWhenReady = playWhenReady
                 _positionMs.value = 0L
             }
         }
 
+        override fun seekToNext() {
+            withController { c -> c.seekToNextMediaItem() }
+        }
+
+        override fun seekToPrevious() {
+            withController { c -> c.seekToPreviousMediaItem() }
+        }
+
+        override fun seekToMediaItem(index: Int) {
+            withController { c -> c.seekToDefaultPosition(index) }
+        }
+
         override fun setPlayWhenReady(playWhenReady: Boolean) {
             withController { c ->
                 c.playWhenReady = playWhenReady
             }
-        }
-
-        override fun setOnTrackEndedListener(listener: () -> Unit) {
-            trackEndedListener = listener
         }
 
         private fun connectController() {
@@ -102,6 +136,8 @@ class MediaEngineImpl
                 val connected = future.get()
                 connected.addListener(playerListener)
                 controller = connected
+                _currentMediaItemIndex.value = connected.currentMediaItemIndex
+                _playWhenReady.value = connected.playWhenReady
                 pendingCommands.forEach { it(connected) }
                 pendingCommands.clear()
             }, ContextCompat.getMainExecutor(context))
@@ -129,3 +165,17 @@ class MediaEngineImpl
             const val POLL_INTERVAL_MS = 500L
         }
     }
+
+private fun AudioTrack.toMediaItem(): MediaItem {
+    val metadata =
+        MediaMetadata.Builder()
+            .setTitle(title)
+            .setArtist(artist)
+            .setAlbumTitle(album)
+            .build()
+    return MediaItem.Builder()
+        .setMediaId(uri)
+        .setUri(uri.toUri())
+        .setMediaMetadata(metadata)
+        .build()
+}

@@ -10,12 +10,21 @@ interface MediaEngine {
 
     val durationMs: StateFlow<Long>
 
-    fun loadTrack(
-        track: AudioTrack,
+    val currentMediaItemIndex: StateFlow<Int>
+
+    val playWhenReady: StateFlow<Boolean>
+
+    fun setQueue(
+        items: List<AudioTrack>,
+        startIndex: Int,
         playWhenReady: Boolean,
     )
 
-    fun setPlayWhenReady(playWhenReady: Boolean)
+    fun seekToNext()
 
-    fun setOnTrackEndedListener(listener: () -> Unit)
+    fun seekToPrevious()
+
+    fun seekToMediaItem(index: Int)
+
+    fun setPlayWhenReady(playWhenReady: Boolean)
 }

@@ -5,7 +5,6 @@ import io.github.reneknap.mediacenter.data.audio.PlaybackQueueState
 import io.github.reneknap.mediacenter.data.playback.PlaybackPreferencesDataSource
 import io.github.reneknap.mediacenter.di.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -24,9 +23,6 @@ class PlaybackControllerImpl
         private val playbackPreferences: PlaybackPreferencesDataSource,
         @ApplicationScope private val scope: CoroutineScope,
     ) : PlaybackController {
-        private val playIntent = MutableStateFlow(false)
-        private var lastLoadedUri: String? = null
-
         override val status: StateFlow<PlayerStatus> =
             combine(
                 engine.isPlaying,
@@ -44,23 +40,8 @@ class PlaybackControllerImpl
 
         init {
             scope.launch {
-                queue.state.collect { state ->
-                    if (state is PlaybackQueueState.Active) {
-                        val track = state.current
-                        if (track.uri != lastLoadedUri) {
-                            lastLoadedUri = track.uri
-                            engine.loadTrack(track, playWhenReady = playIntent.value)
-                        }
-                    }
-                }
-            }
-            engine.setOnTrackEndedListener {
-                val current = queue.state.value
-                if (current is PlaybackQueueState.Active && current.hasNext) {
-                    queue.moveToNext()
-                } else {
-                    playIntent.value = false
-                    engine.setPlayWhenReady(false)
+                engine.currentMediaItemIndex.collect { playerPos ->
+                    mirrorPlayerPositionToQueue(playerPos)
                 }
             }
         }
@@ -71,40 +52,56 @@ class PlaybackControllerImpl
                 current is PlaybackQueueState.Active &&
                     current.tracks.firstOrNull()?.folderUri == folderUri
             if (isSameFolder) return
-            playIntent.value = false
             queue.setQueue(folderUri)
             val persistedShuffle = playbackPreferences.shuffleEnabled.first()
             if (persistedShuffle) {
                 queue.setShuffleEnabled(enabled = true)
             }
+            val newState = queue.state.value as? PlaybackQueueState.Active ?: return
+            engine.setQueue(newState.toOrderedItems(), startIndex = 0, playWhenReady = false)
         }
 
         override fun playAtIndex(index: Int) {
             val state = queue.state.value
             if (state !is PlaybackQueueState.Active || index !in state.tracks.indices) return
-            playIntent.value = true
-            queue.moveTo(index)
+            val playerPos = state.playbackOrder.indexOf(index)
+            engine.seekToMediaItem(playerPos)
             engine.setPlayWhenReady(true)
         }
 
         override fun togglePlayPause() {
-            val newValue = !playIntent.value
-            playIntent.value = newValue
-            engine.setPlayWhenReady(newValue)
+            engine.setPlayWhenReady(!engine.playWhenReady.value)
         }
 
         override fun next() {
-            queue.moveToNext()
+            engine.seekToNext()
         }
 
         override fun previous() {
-            queue.moveToPrevious()
+            engine.seekToPrevious()
         }
 
         override fun setShuffleEnabled(enabled: Boolean) {
-            queue.setShuffleEnabled(enabled)
+            val state = queue.state.value
+            if (state is PlaybackQueueState.Active && state.shuffleEnabled != enabled) {
+                queue.setShuffleEnabled(enabled)
+                val newState = queue.state.value as PlaybackQueueState.Active
+                val startIndex = newState.playbackOrder.indexOf(newState.currentIndex)
+                engine.setQueue(newState.toOrderedItems(), startIndex, engine.playWhenReady.value)
+            }
             scope.launch {
                 playbackPreferences.setShuffleEnabled(enabled)
             }
         }
+
+        private fun mirrorPlayerPositionToQueue(playerPos: Int) {
+            val state = queue.state.value as? PlaybackQueueState.Active ?: return
+            if (playerPos !in state.playbackOrder.indices) return
+            val mirroredIndex = state.playbackOrder[playerPos]
+            if (mirroredIndex != state.currentIndex) {
+                queue.moveTo(mirroredIndex)
+            }
+        }
+
+        private fun PlaybackQueueState.Active.toOrderedItems() = playbackOrder.map { tracks[it] }
     }
