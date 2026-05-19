@@ -1,13 +1,19 @@
 package io.github.reneknap.mediacenter.playback
 
+import android.content.ComponentName
+import android.content.Context
+import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.reneknap.mediacenter.data.audio.AudioTrack
 import io.github.reneknap.mediacenter.di.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,7 +26,7 @@ import javax.inject.Singleton
 class MediaEngineImpl
     @Inject
     constructor(
-        private val player: ExoPlayer,
+        @ApplicationContext private val context: Context,
         @ApplicationScope appScope: CoroutineScope,
     ) : MediaEngine {
         private val scope = CoroutineScope(appScope.coroutineContext + Dispatchers.Main.immediate)
@@ -34,6 +40,9 @@ class MediaEngineImpl
         private val _durationMs = MutableStateFlow(0L)
         override val durationMs: StateFlow<Long> = _durationMs.asStateFlow()
 
+        private var controller: MediaController? = null
+        private val pendingCommands = mutableListOf<(MediaController) -> Unit>()
+
         private var trackEndedListener: (() -> Unit)? = null
 
         private val playerListener =
@@ -43,8 +52,9 @@ class MediaEngineImpl
                 }
 
                 override fun onPlaybackStateChanged(playbackState: Int) {
+                    val active = controller ?: return
                     if (playbackState == Player.STATE_READY) {
-                        _durationMs.value = player.duration.coerceAtLeast(0L)
+                        _durationMs.value = active.duration.coerceAtLeast(0L)
                     }
                     if (playbackState == Player.STATE_ENDED) {
                         trackEndedListener?.invoke()
@@ -53,9 +63,7 @@ class MediaEngineImpl
             }
 
         init {
-            scope.launch {
-                player.addListener(playerListener)
-            }
+            connectController()
             scope.launch {
                 _isPlaying.collectLatest { playing ->
                     if (playing) {
@@ -69,17 +77,17 @@ class MediaEngineImpl
             track: AudioTrack,
             playWhenReady: Boolean,
         ) {
-            scope.launch {
-                player.setMediaItem(MediaItem.fromUri(track.uri.toUri()))
-                player.prepare()
-                player.playWhenReady = playWhenReady
+            withController { c ->
+                c.setMediaItem(MediaItem.fromUri(track.uri.toUri()))
+                c.prepare()
+                c.playWhenReady = playWhenReady
                 _positionMs.value = 0L
             }
         }
 
         override fun setPlayWhenReady(playWhenReady: Boolean) {
-            scope.launch {
-                player.playWhenReady = playWhenReady
+            withController { c ->
+                c.playWhenReady = playWhenReady
             }
         }
 
@@ -87,10 +95,33 @@ class MediaEngineImpl
             trackEndedListener = listener
         }
 
+        private fun connectController() {
+            val token = SessionToken(context, ComponentName(context, MediaCenterPlaybackService::class.java))
+            val future = MediaController.Builder(context, token).buildAsync()
+            future.addListener({
+                val connected = future.get()
+                connected.addListener(playerListener)
+                controller = connected
+                pendingCommands.forEach { it(connected) }
+                pendingCommands.clear()
+            }, ContextCompat.getMainExecutor(context))
+        }
+
+        private fun withController(block: (MediaController) -> Unit) {
+            scope.launch {
+                val c = controller
+                if (c != null) {
+                    block(c)
+                } else {
+                    pendingCommands.add(block)
+                }
+            }
+        }
+
         private suspend fun pollPosition() {
             while (_isPlaying.value) {
-                _positionMs.value = player.currentPosition
-                kotlinx.coroutines.delay(POLL_INTERVAL_MS)
+                controller?.let { _positionMs.value = it.currentPosition }
+                delay(POLL_INTERVAL_MS)
             }
         }
 
