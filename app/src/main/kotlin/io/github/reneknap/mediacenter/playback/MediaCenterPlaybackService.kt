@@ -47,6 +47,15 @@ import javax.inject.Inject
  * - The single hook button on one-button headsets ([KeyEvent.KEYCODE_HEADSETHOOK]) is
  *   intercepted for multi-tap: 1 = play/pause, 2 = next, 3 = previous, debounced via
  *   [HeadsetHookMultiTapDetector].
+ *
+ * Audio focus policy:
+ * - Focus, ducking, and resume-after-interruption are delegated to ExoPlayer's
+ *   AudioFocusManager, enabled via setAudioAttributes(attributes, handleAudioFocus = true)
+ *   in [onCreate]. No app-level AudioManager focus request — it would race that manager.
+ * - Transient loss (e.g. an incoming call) pauses playback and resumes on focus regain;
+ *   a transient-may-duck request lowers the volume and restores it afterwards.
+ * - Permanent loss (another media app takes focus) pauses and intentionally does not
+ *   auto-resume — the user resumes manually.
  */
 @AndroidEntryPoint
 class MediaCenterPlaybackService : MediaSessionService() {
