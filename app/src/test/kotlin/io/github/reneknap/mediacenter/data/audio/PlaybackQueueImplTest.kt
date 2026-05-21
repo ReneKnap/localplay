@@ -519,4 +519,435 @@ class PlaybackQueueImplTest {
             val state = q.state.value as PlaybackQueueState.Active
             assertNotEquals(tracks.indices.toList(), state.playbackOrder)
         }
+
+    // ---------------------------------------------------------------------
+    // Editable queue — reorder (move)
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `move reorders playbackOrder and keeps currentIndex on the same track`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (0..3).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue()
+            q.setQueue(folderUri)
+            q.moveTo(1)
+
+            q.move(0, 2)
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(listOf(1, 2, 0, 3), state.playbackOrder)
+            assertEquals(1, state.currentIndex)
+            assertEquals(tracks, state.tracks)
+        }
+
+    @Test
+    fun `move during shuffle reorders the shuffled order`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (0..4).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue(Random(42L))
+            q.setQueue(folderUri)
+            q.setShuffleEnabled(enabled = true)
+            val before = (q.state.value as PlaybackQueueState.Active).playbackOrder
+
+            q.move(0, 1)
+
+            val expected = before.toMutableList().also { it.add(1, it.removeAt(0)) }
+            assertEquals(expected, (q.state.value as PlaybackQueueState.Active).playbackOrder)
+        }
+
+    @Test
+    fun `move with out-of-bounds position is no-op`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (0..2).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue()
+            q.setQueue(folderUri)
+            val before = q.state.value
+
+            q.move(0, 99)
+
+            assertEquals(before, q.state.value)
+        }
+
+    @Test
+    fun `move on Empty is no-op`() {
+        val q = queue()
+        q.move(0, 1)
+        assertEquals(PlaybackQueueState.Empty, q.state.value)
+    }
+
+    // ---------------------------------------------------------------------
+    // Editable queue — deactivate
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `deactivate non-current track moves it to the deactivated section`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (0..3).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue()
+            q.setQueue(folderUri)
+            q.moveTo(2)
+
+            q.deactivate(0)
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(listOf(1, 2, 3), state.playbackOrder)
+            assertEquals(listOf(0), state.deactivated)
+            assertEquals(2, state.currentIndex)
+        }
+
+    @Test
+    fun `deactivate current track advances currentIndex to successor in order`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (0..3).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue()
+            q.setQueue(folderUri)
+            q.moveTo(1)
+
+            q.deactivate(1)
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(listOf(0, 2, 3), state.playbackOrder)
+            assertEquals(listOf(1), state.deactivated)
+            assertEquals(2, state.currentIndex)
+        }
+
+    @Test
+    fun `deactivate current track at last active position falls back to predecessor`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (0..2).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue()
+            q.setQueue(folderUri)
+            q.moveTo(2)
+
+            q.deactivate(2)
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(listOf(0, 1), state.playbackOrder)
+            assertEquals(listOf(2), state.deactivated)
+            assertEquals(1, state.currentIndex)
+        }
+
+    @Test
+    fun `deactivate the only remaining active track is a no-op`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (0..2).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue()
+            q.setQueue(folderUri)
+            q.deactivate(0)
+            q.deactivate(0)
+            val before = q.state.value as PlaybackQueueState.Active
+            assertEquals(1, before.playbackOrder.size)
+
+            q.deactivate(0)
+
+            assertEquals(before, q.state.value)
+        }
+
+    @Test
+    fun `deactivate appends to the back of the deactivated section`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (0..3).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue()
+            q.setQueue(folderUri)
+            q.moveTo(3)
+
+            q.deactivate(0)
+            q.deactivate(0)
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(listOf(0, 1), state.deactivated)
+            assertEquals(listOf(2, 3), state.playbackOrder)
+        }
+
+    @Test
+    fun `deactivate with out-of-bounds position is no-op`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (0..2).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue()
+            q.setQueue(folderUri)
+            val before = q.state.value
+
+            q.deactivate(99)
+
+            assertEquals(before, q.state.value)
+        }
+
+    @Test
+    fun `deactivate on Empty is no-op`() {
+        val q = queue()
+        q.deactivate(0)
+        assertEquals(PlaybackQueueState.Empty, q.state.value)
+    }
+
+    // ---------------------------------------------------------------------
+    // Editable queue — moveAfterCurrent ("play next")
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `moveAfterCurrent places track right after current`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (0..4).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue()
+            q.setQueue(folderUri)
+            q.moveTo(1)
+
+            q.moveAfterCurrent(3)
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(listOf(0, 1, 3, 2, 4), state.playbackOrder)
+            assertEquals(1, state.currentIndex)
+        }
+
+    @Test
+    fun `moveAfterCurrent on the current track itself is no-op`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (0..3).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue()
+            q.setQueue(folderUri)
+            q.moveTo(1)
+            val before = q.state.value
+
+            q.moveAfterCurrent(1)
+
+            assertEquals(before, q.state.value)
+        }
+
+    @Test
+    fun `moveAfterCurrent when current is last appends directly after current`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (0..3).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue()
+            q.setQueue(folderUri)
+            q.moveTo(3)
+
+            q.moveAfterCurrent(0)
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(listOf(1, 2, 3, 0), state.playbackOrder)
+            assertEquals(3, state.currentIndex)
+        }
+
+    @Test
+    fun `moveAfterCurrent on Empty is no-op`() {
+        val q = queue()
+        q.moveAfterCurrent(0)
+        assertEquals(PlaybackQueueState.Empty, q.state.value)
+    }
+
+    // ---------------------------------------------------------------------
+    // Editable queue — reactivate
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `reactivate appends a deactivated track to the end of the active order`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (0..3).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue()
+            q.setQueue(folderUri)
+            q.deactivate(1)
+
+            q.reactivate(1)
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(listOf(0, 2, 3, 1), state.playbackOrder)
+            assertEquals(emptyList<Int>(), state.deactivated)
+            assertEquals(0, state.currentIndex)
+        }
+
+    @Test
+    fun `reactivate removes only the chosen track from the deactivated section`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (0..3).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue()
+            q.setQueue(folderUri)
+            q.moveTo(3)
+            q.deactivate(0) // deactivate track 0
+            q.deactivate(0) // deactivate track 1
+
+            q.reactivate(1)
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(listOf(0), state.deactivated)
+            assertEquals(1, state.playbackOrder.last())
+        }
+
+    @Test
+    fun `reactivateAt inserts a deactivated track at the given active position`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (0..3).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue()
+            q.setQueue(folderUri)
+            q.moveTo(3)
+            q.deactivate(0) // order [1,2,3], deactivated [0]
+
+            q.reactivateAt(0, 1)
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(listOf(1, 0, 2, 3), state.playbackOrder)
+            assertEquals(emptyList<Int>(), state.deactivated)
+        }
+
+    @Test
+    fun `reactivate of a non-deactivated track is no-op`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (0..3).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue()
+            q.setQueue(folderUri)
+            val before = q.state.value
+
+            q.reactivate(0)
+
+            assertEquals(before, q.state.value)
+        }
+
+    @Test
+    fun `reactivate on Empty is no-op`() {
+        val q = queue()
+        q.reactivate(0)
+        assertEquals(PlaybackQueueState.Empty, q.state.value)
+    }
+
+    // ---------------------------------------------------------------------
+    // Editable queue — reset
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `reset restores natural active order, clears deactivated, and disables shuffle`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (0..4).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue(Random(42L))
+            q.setQueue(folderUri)
+            q.setShuffleEnabled(enabled = true)
+            q.deactivate(2)
+
+            q.reset()
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(listOf(0, 1, 2, 3, 4), state.playbackOrder)
+            assertEquals(emptyList<Int>(), state.deactivated)
+            assertEquals(false, state.shuffleEnabled)
+        }
+
+    @Test
+    fun `reset keeps the current track`() =
+        runTest {
+            val folderUri = "content://music/album"
+            val tracks = (0..4).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val q = queue()
+            q.setQueue(folderUri)
+            q.moveTo(3)
+
+            q.reset()
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(3, state.currentIndex)
+        }
+
+    @Test
+    fun `reset on Empty is no-op`() {
+        val q = queue()
+        q.reset()
+        assertEquals(PlaybackQueueState.Empty, q.state.value)
+    }
+
+    // ---------------------------------------------------------------------
+    // Active partition invariant (ADR-008): active ∪ deactivated covers every index once
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `Active accepts a partition of active and deactivated indices`() {
+        val folderUri = "content://music/album"
+        val tracks = (0..3).map { track("$folderUri/$it") }
+
+        val active =
+            PlaybackQueueState.Active(
+                tracks = tracks,
+                currentIndex = 2,
+                playbackOrder = listOf(0, 2, 3),
+                deactivated = listOf(1),
+            )
+
+        assertEquals(listOf(0, 2, 3), active.playbackOrder)
+        assertEquals(listOf(1), active.deactivated)
+        assertSame(tracks[2], active.current)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `Active rejects a track index present in both active and deactivated`() {
+        val tracks = (0..2).map { track("content://music/album/$it") }
+        PlaybackQueueState.Active(
+            tracks = tracks,
+            currentIndex = 0,
+            playbackOrder = listOf(0, 1),
+            deactivated = listOf(1, 2),
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `Active rejects when a track index is in neither list`() {
+        val tracks = (0..2).map { track("content://music/album/$it") }
+        PlaybackQueueState.Active(
+            tracks = tracks,
+            currentIndex = 0,
+            playbackOrder = listOf(0),
+            deactivated = listOf(1),
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `Active rejects currentIndex that is not an active track`() {
+        val tracks = (0..2).map { track("content://music/album/$it") }
+        PlaybackQueueState.Active(
+            tracks = tracks,
+            currentIndex = 1,
+            playbackOrder = listOf(0, 2),
+            deactivated = listOf(1),
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `Active rejects an empty active order`() {
+        val tracks = (0..1).map { track("content://music/album/$it") }
+        PlaybackQueueState.Active(
+            tracks = tracks,
+            currentIndex = 0,
+            playbackOrder = emptyList(),
+            deactivated = listOf(0, 1),
+        )
+    }
 }

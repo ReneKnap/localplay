@@ -7,15 +7,25 @@ sealed interface PlaybackQueueState {
         val tracks: List<AudioTrack>,
         val currentIndex: Int,
         val playbackOrder: List<Int>,
+        val deactivated: List<Int> = emptyList(),
         val shuffleEnabled: Boolean = false,
     ) : PlaybackQueueState {
         init {
+            // ADR-008: tracks is the immutable folder snapshot (lookup table). Every track index is
+            // partitioned into exactly one of two ordered lists: playbackOrder (the active queue the
+            // player plays) or deactivated (greyed tracks parked at the bottom, skipped during
+            // playback). The current track must be an active one.
             require(tracks.isNotEmpty()) { "Active queue must have tracks" }
-            require(currentIndex in tracks.indices) {
-                "currentIndex $currentIndex out of bounds for tracks of size ${tracks.size}"
+            require(playbackOrder.isNotEmpty()) { "Active queue must have at least one active track" }
+            val combined = playbackOrder + deactivated
+            require(combined.toHashSet().size == combined.size) {
+                "a track index must not appear in both the active and deactivated lists, nor twice"
             }
-            require(playbackOrder.size == tracks.size && playbackOrder.toHashSet() == tracks.indices.toHashSet()) {
-                "playbackOrder must be a permutation of tracks indices"
+            require(combined.toHashSet() == tracks.indices.toHashSet()) {
+                "active and deactivated lists together must cover every track index exactly once"
+            }
+            require(currentIndex in playbackOrder) {
+                "currentIndex $currentIndex must be an active track"
             }
         }
 

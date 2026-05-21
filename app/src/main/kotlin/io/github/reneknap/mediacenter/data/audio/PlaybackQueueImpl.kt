@@ -83,25 +83,113 @@ class PlaybackQueueImpl
                 if (current !is PlaybackQueueState.Active || current.shuffleEnabled == enabled) {
                     return@update current
                 }
-                if (enabled) {
-                    current.copy(
-                        playbackOrder = shuffledOrderWithFirst(current.tracks.indices, current.currentIndex),
-                        shuffleEnabled = true,
-                    )
-                } else {
-                    current.copy(
-                        playbackOrder = current.tracks.indices.toList(),
-                        shuffleEnabled = false,
-                    )
+                // Shuffle/sort the current queue members, not all folder tracks: tracks removed in this
+                // session must not reappear when shuffle is toggled (ADR-008 non-goal).
+                val newOrder =
+                    if (enabled) {
+                        shuffledOrderWithFirst(current.playbackOrder, current.currentIndex)
+                    } else {
+                        current.playbackOrder.sorted()
+                    }
+                current.copy(playbackOrder = newOrder, shuffleEnabled = enabled)
+            }
+        }
+
+        override fun move(
+            fromPosition: Int,
+            toPosition: Int,
+        ) {
+            _state.update { current ->
+                if (current !is PlaybackQueueState.Active) return@update current
+                if (fromPosition !in current.playbackOrder.indices || toPosition !in current.playbackOrder.indices) {
+                    return@update current
                 }
+                if (fromPosition == toPosition) return@update current
+                val newOrder = current.playbackOrder.toMutableList()
+                newOrder.add(toPosition, newOrder.removeAt(fromPosition))
+                current.copy(playbackOrder = newOrder)
+            }
+        }
+
+        override fun deactivate(position: Int) {
+            _state.update { current ->
+                if (current !is PlaybackQueueState.Active) return@update current
+                if (position !in current.playbackOrder.indices) return@update current
+                // Keep at least one active track; the last active one cannot be deactivated.
+                if (current.playbackOrder.size == 1) return@update current
+                val newOrder = current.playbackOrder.toMutableList()
+                val deactivatedTrackIndex = newOrder.removeAt(position)
+                val newCurrentIndex =
+                    if (deactivatedTrackIndex == current.currentIndex) {
+                        // Advance to the successor that shifted into `position`, or fall back to the
+                        // predecessor when the deactivated track was last in the active order.
+                        newOrder[position.coerceAtMost(newOrder.lastIndex)]
+                    } else {
+                        current.currentIndex
+                    }
+                current.copy(
+                    playbackOrder = newOrder,
+                    currentIndex = newCurrentIndex,
+                    deactivated = current.deactivated + deactivatedTrackIndex,
+                )
+            }
+        }
+
+        override fun moveAfterCurrent(position: Int) {
+            _state.update { current ->
+                if (current !is PlaybackQueueState.Active) return@update current
+                if (position !in current.playbackOrder.indices) return@update current
+                if (position == current.playbackOrder.indexOf(current.currentIndex)) return@update current
+                val newOrder = current.playbackOrder.toMutableList()
+                val moved = newOrder.removeAt(position)
+                newOrder.add(newOrder.indexOf(current.currentIndex) + 1, moved)
+                current.copy(playbackOrder = newOrder)
+            }
+        }
+
+        override fun reactivate(trackIndex: Int) {
+            _state.update { current ->
+                if (current !is PlaybackQueueState.Active) return@update current
+                if (trackIndex !in current.deactivated) return@update current
+                current.copy(
+                    playbackOrder = current.playbackOrder + trackIndex,
+                    deactivated = current.deactivated - trackIndex,
+                )
+            }
+        }
+
+        override fun reactivateAt(
+            trackIndex: Int,
+            position: Int,
+        ) {
+            _state.update { current ->
+                if (current !is PlaybackQueueState.Active) return@update current
+                if (trackIndex !in current.deactivated) return@update current
+                val newOrder = current.playbackOrder.toMutableList()
+                newOrder.add(position.coerceIn(0, newOrder.size), trackIndex)
+                current.copy(
+                    playbackOrder = newOrder,
+                    deactivated = current.deactivated - trackIndex,
+                )
+            }
+        }
+
+        override fun reset() {
+            _state.update { current ->
+                if (current !is PlaybackQueueState.Active) return@update current
+                current.copy(
+                    playbackOrder = current.tracks.indices.toList(),
+                    deactivated = emptyList(),
+                    shuffleEnabled = false,
+                )
             }
         }
 
         private fun shuffledOrderWithFirst(
-            indices: IntRange,
+            order: List<Int>,
             firstIndex: Int,
         ): List<Int> {
-            val rest = indices.filter { it != firstIndex }.shuffled(random)
+            val rest = order.filter { it != firstIndex }.shuffled(random)
             return listOf(firstIndex) + rest
         }
     }
