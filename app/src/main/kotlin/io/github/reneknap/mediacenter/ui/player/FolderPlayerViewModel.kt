@@ -1,9 +1,11 @@
 package io.github.reneknap.mediacenter.ui.player
 
+import android.graphics.Bitmap
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.github.reneknap.mediacenter.data.audio.ArtworkReader
 import io.github.reneknap.mediacenter.data.audio.AudioRepository
 import io.github.reneknap.mediacenter.data.audio.AudioTrack
 import io.github.reneknap.mediacenter.data.audio.FolderScanState
@@ -29,6 +31,7 @@ class FolderPlayerViewModel
         private val audioRepository: AudioRepository,
         private val queue: PlaybackQueue,
         private val controller: PlaybackController,
+        private val artworkReader: ArtworkReader,
         savedStateHandle: SavedStateHandle,
     ) : ViewModel() {
         val folderUri: String = savedStateHandle.get<String>(ARG_FOLDER_URI).orEmpty()
@@ -98,6 +101,12 @@ class FolderPlayerViewModel
         fun previous() {
             controller.previous()
         }
+
+        fun seekTo(positionMs: Long) {
+            controller.seekTo(positionMs)
+        }
+
+        suspend fun artworkFor(uri: String): Bitmap? = artworkReader.loadArtwork(uri)
 
         fun toggleShuffle() {
             val enabling = !controller.status.value.shuffleEnabled

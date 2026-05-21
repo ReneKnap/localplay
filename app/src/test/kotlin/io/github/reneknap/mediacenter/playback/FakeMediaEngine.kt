@@ -28,6 +28,7 @@ class FakeMediaEngine : MediaEngine {
         val items: List<AudioTrack>,
         val startIndex: Int,
         val playWhenReady: Boolean,
+        val startPositionMs: Long?,
     )
 
     sealed interface Seek {
@@ -36,6 +37,8 @@ class FakeMediaEngine : MediaEngine {
         data object Previous : Seek
 
         data class MediaItem(val index: Int) : Seek
+
+        data class Position(val positionMs: Long) : Seek
     }
 
     val setQueueHistory: MutableList<SetQueueCall> = mutableListOf()
@@ -45,12 +48,14 @@ class FakeMediaEngine : MediaEngine {
         items: List<AudioTrack>,
         startIndex: Int,
         playWhenReady: Boolean,
+        startPositionMs: Long?,
     ) {
         this.items = items
         _currentMediaItemIndex.value = startIndex
         _playWhenReady.value = playWhenReady
         _isPlaying.value = playWhenReady
-        setQueueHistory.add(SetQueueCall(items, startIndex, playWhenReady))
+        if (startPositionMs != null) _positionMs.value = startPositionMs
+        setQueueHistory.add(SetQueueCall(items, startIndex, playWhenReady, startPositionMs))
     }
 
     override fun seekToNext() {
@@ -74,6 +79,11 @@ class FakeMediaEngine : MediaEngine {
         if (index in items.indices) {
             _currentMediaItemIndex.value = index
         }
+    }
+
+    override fun seekTo(positionMs: Long) {
+        seekHistory.add(Seek.Position(positionMs))
+        _positionMs.value = positionMs
     }
 
     override fun setPlayWhenReady(playWhenReady: Boolean) {

@@ -10,6 +10,7 @@ class FakePlaybackController : PlaybackController {
 
     val preparedFolders: MutableList<String> = mutableListOf()
     val playedIndexes: MutableList<Int> = mutableListOf()
+    val seekedPositions: MutableList<Long> = mutableListOf()
     val shuffleEnabledCalls: MutableList<Boolean> = mutableListOf()
     var togglePlayPauseCount: Int = 0
         private set
@@ -36,6 +37,10 @@ class FakePlaybackController : PlaybackController {
 
     override fun previous() {
         previousCount += 1
+    }
+
+    override fun seekTo(positionMs: Long) {
+        seekedPositions.add(positionMs)
     }
 
     override fun setShuffleEnabled(enabled: Boolean) {

@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import io.github.reneknap.mediacenter.MainDispatcherRule
 import io.github.reneknap.mediacenter.data.audio.AudioTrack
+import io.github.reneknap.mediacenter.data.audio.FakeArtworkReader
 import io.github.reneknap.mediacenter.data.audio.FakeAudioRepository
 import io.github.reneknap.mediacenter.data.audio.FolderScanState
 import io.github.reneknap.mediacenter.data.audio.FolderTracks
@@ -28,12 +29,14 @@ class FolderPlayerViewModelTest {
     private lateinit var audioRepository: FakeAudioRepository
     private lateinit var queue: PlaybackQueueImpl
     private lateinit var controller: FakePlaybackController
+    private lateinit var artworkReader: FakeArtworkReader
 
     @Before
     fun setUp() {
         audioRepository = FakeAudioRepository()
         queue = PlaybackQueueImpl(audioRepository = audioRepository)
         controller = FakePlaybackController()
+        artworkReader = FakeArtworkReader()
     }
 
     private fun viewModel(
@@ -47,6 +50,7 @@ class FolderPlayerViewModelTest {
             audioRepository = audioRepository,
             queue = queue,
             controller = controller,
+            artworkReader = artworkReader,
             savedStateHandle = handle,
         )
     }

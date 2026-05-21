@@ -15,5 +15,7 @@ interface PlaybackController {
 
     fun previous()
 
+    fun seekTo(positionMs: Long)
+
     fun setShuffleEnabled(enabled: Boolean)
 }

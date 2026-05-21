@@ -18,6 +18,7 @@ interface MediaEngine {
         items: List<AudioTrack>,
         startIndex: Int,
         playWhenReady: Boolean,
+        startPositionMs: Long?,
     )
 
     fun seekToNext()
@@ -25,6 +26,8 @@ interface MediaEngine {
     fun seekToPrevious()
 
     fun seekToMediaItem(index: Int)
+
+    fun seekTo(positionMs: Long)
 
     fun setPlayWhenReady(playWhenReady: Boolean)
 }

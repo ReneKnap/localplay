@@ -58,7 +58,7 @@ class PlaybackControllerImpl
                 queue.setShuffleEnabled(enabled = true)
             }
             val newState = queue.state.value as? PlaybackQueueState.Active ?: return
-            engine.setQueue(newState.toOrderedItems(), startIndex = 0, playWhenReady = false)
+            engine.setQueue(newState.toOrderedItems(), startIndex = 0, playWhenReady = false, startPositionMs = 0L)
         }
 
         override fun playAtIndex(index: Int) {
@@ -81,13 +81,23 @@ class PlaybackControllerImpl
             engine.seekToPrevious()
         }
 
+        override fun seekTo(positionMs: Long) {
+            engine.seekTo(positionMs)
+        }
+
         override fun setShuffleEnabled(enabled: Boolean) {
             val state = queue.state.value
             if (state is PlaybackQueueState.Active && state.shuffleEnabled != enabled) {
                 queue.setShuffleEnabled(enabled)
                 val newState = queue.state.value as PlaybackQueueState.Active
                 val startIndex = newState.playbackOrder.indexOf(newState.currentIndex)
-                engine.setQueue(newState.toOrderedItems(), startIndex, engine.playWhenReady.value)
+                // Keep the current track playing at its position across the reorder (startPositionMs = null).
+                engine.setQueue(
+                    newState.toOrderedItems(),
+                    startIndex,
+                    engine.playWhenReady.value,
+                    startPositionMs = null,
+                )
             }
             scope.launch {
                 playbackPreferences.setShuffleEnabled(enabled)

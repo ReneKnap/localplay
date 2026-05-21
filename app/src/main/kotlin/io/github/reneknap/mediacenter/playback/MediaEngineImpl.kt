@@ -4,7 +4,6 @@ import android.content.ComponentName
 import android.content.Context
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
-import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -101,13 +100,17 @@ class MediaEngineImpl
             items: List<AudioTrack>,
             startIndex: Int,
             playWhenReady: Boolean,
+            startPositionMs: Long?,
         ) {
             val mediaItems = items.map { it.toMediaItem() }
             withController { c ->
-                c.setMediaItems(mediaItems, startIndex, C.TIME_UNSET)
+                // A null startPositionMs means "keep the current item playing where it is" — used when
+                // re-pushing a reordered queue (shuffle toggle) so the current track does not restart.
+                val resolvedPosition = startPositionMs ?: c.currentPosition
+                c.setMediaItems(mediaItems, startIndex, resolvedPosition)
                 c.prepare()
                 c.playWhenReady = playWhenReady
-                _positionMs.value = 0L
+                _positionMs.value = resolvedPosition
             }
         }
 
@@ -121,6 +124,15 @@ class MediaEngineImpl
 
         override fun seekToMediaItem(index: Int) {
             withController { c -> c.seekToDefaultPosition(index) }
+        }
+
+        override fun seekTo(positionMs: Long) {
+            withController { c ->
+                c.seekTo(positionMs)
+                // Reflect the new position immediately so the seek bar does not snap back
+                // to the last polled value before the next poll tick.
+                _positionMs.value = positionMs
+            }
         }
 
         override fun setPlayWhenReady(playWhenReady: Boolean) {

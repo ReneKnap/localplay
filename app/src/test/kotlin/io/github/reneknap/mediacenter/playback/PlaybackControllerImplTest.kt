@@ -87,6 +87,7 @@ class PlaybackControllerImplTest {
             assertEquals(tracks, last.items)
             assertEquals(0, last.startIndex)
             assertEquals(false, last.playWhenReady)
+            assertEquals(0L, last.startPositionMs)
         }
 
     @Test
@@ -267,6 +268,20 @@ class PlaybackControllerImplTest {
             assertEquals(FakeMediaEngine.Seek.Previous, engine.seekHistory.last())
         }
 
+    @Test
+    fun `seekTo delegates to engine seekTo with the given position`() =
+        runTest {
+            val folderUri = "content://music/a"
+            val tracks = listOf(track("$folderUri/1"), track("$folderUri/2"))
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val c = controller(this)
+            c.prepareFolder(folderUri)
+
+            c.seekTo(42_000L)
+
+            assertEquals(FakeMediaEngine.Seek.Position(42_000L), engine.seekHistory.last())
+        }
+
     // ---------------------------------------------------------------------
     // Mirror — engine → queue
     // ---------------------------------------------------------------------
@@ -350,6 +365,23 @@ class PlaybackControllerImplTest {
             val last = engine.setQueueHistory.last()
             assertEquals(tracks, last.items)
             assertEquals(currentTrackIndex, last.startIndex)
+        }
+
+    @Test
+    fun `setShuffleEnabled re-pushes with null startPositionMs so the current track keeps playing`() =
+        runTest {
+            val folderUri = "content://music/a"
+            val tracks = (1..5).map { track("$folderUri/$it") }
+            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val c = controller(this)
+            c.prepareFolder(folderUri)
+            c.playAtIndex(2)
+
+            c.setShuffleEnabled(true)
+            testScheduler.advanceUntilIdle()
+
+            // null = keep the current item at its position; a concrete 0L would restart the track.
+            assertEquals(null, engine.setQueueHistory.last().startPositionMs)
         }
 
     @Test

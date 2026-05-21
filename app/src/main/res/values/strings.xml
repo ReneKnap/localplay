@@ -23,7 +23,10 @@
     <string name="player_no_track_hint">Tap a track and press play, or press play to start with the first track</string>
     <string name="player_now_playing_content_description">Now playing</string>
     <string name="player_unknown_track">Unknown track</string>
-    <string name="player_remaining_time">-%1$d:%2$02d</string>
+    <string name="player_elapsed_of_total">%1$s / %2$s</string>
+    <string name="player_seek_bar">Seek bar</string>
+    <string name="player_cover_art">Album cover</string>
+    <string name="player_no_cover_art">No album cover</string>
     <string name="player_shuffle_on">Shuffle on</string>
     <string name="player_shuffle_off">Shuffle off</string>
 </resources>

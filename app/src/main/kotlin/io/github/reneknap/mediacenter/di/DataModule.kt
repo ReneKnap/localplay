@@ -11,6 +11,8 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import io.github.reneknap.mediacenter.data.audio.ArtworkReader
+import io.github.reneknap.mediacenter.data.audio.ArtworkReaderImpl
 import io.github.reneknap.mediacenter.data.audio.AudioFileScanner
 import io.github.reneknap.mediacenter.data.audio.AudioFileScannerImpl
 import io.github.reneknap.mediacenter.data.audio.AudioRepository
@@ -53,6 +55,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindTagReader(impl: TagReaderImpl): TagReader
+
+    @Binds
+    @Singleton
+    abstract fun bindArtworkReader(impl: ArtworkReaderImpl): ArtworkReader
 
     @Binds
     @Singleton

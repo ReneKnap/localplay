@@ -1,5 +1,7 @@
 package io.github.reneknap.mediacenter.ui.player
 
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +18,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MusicNote
@@ -29,20 +33,30 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -76,6 +90,8 @@ fun FolderPlayerScreen(
         onNext = viewModel::next,
         onPrevious = viewModel::previous,
         onToggleShuffle = viewModel::toggleShuffle,
+        onSeek = viewModel::seekTo,
+        onLoadArtwork = viewModel::artworkFor,
     )
 }
 
@@ -89,6 +105,8 @@ private fun FolderPlayerContent(
     onNext: () -> Unit,
     onPrevious: () -> Unit,
     onToggleShuffle: () -> Unit,
+    onSeek: (Long) -> Unit,
+    onLoadArtwork: suspend (String) -> Bitmap?,
 ) {
     Scaffold(
         topBar = {
@@ -112,6 +130,8 @@ private fun FolderPlayerContent(
                     onNext = onNext,
                     onPrevious = onPrevious,
                     onToggleShuffle = onToggleShuffle,
+                    onSeek = onSeek,
+                    onLoadArtwork = onLoadArtwork,
                 )
             }
         },
@@ -265,12 +285,15 @@ private fun PlayerControls(
     onNext: () -> Unit,
     onPrevious: () -> Unit,
     onToggleShuffle: () -> Unit,
+    onSeek: (Long) -> Unit,
+    onLoadArtwork: suspend (String) -> Bitmap?,
 ) {
     val displayIndex = state.selectedIndex ?: state.currentIndex
     val displayTrack = displayIndex?.let { state.tracks.getOrNull(it) }
     val isPendingSelection = displayIndex != null && displayIndex != state.currentIndex
     val positionMs = if (isPendingSelection) 0L else state.status.positionMs
     val durationMs = if (isPendingSelection) (displayTrack?.durationMs ?: 0L) else state.status.durationMs
+    val isSeekable = displayIndex != null && !isPendingSelection && durationMs > 0L
     Surface(tonalElevation = 3.dp) {
         Column(
             modifier =
@@ -279,9 +302,14 @@ private fun PlayerControls(
                     .navigationBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
-            CurrentTrackInfo(displayTrack = displayTrack)
+            CurrentTrackInfo(displayTrack = displayTrack, onLoadArtwork = onLoadArtwork)
             Spacer(modifier = Modifier.height(8.dp))
-            ProgressRow(positionMs = positionMs, durationMs = durationMs)
+            ProgressRow(
+                positionMs = positionMs,
+                durationMs = durationMs,
+                isSeekable = isSeekable,
+                onSeek = onSeek,
+            )
             Spacer(modifier = Modifier.height(8.dp))
             TransportRow(
                 state = state,
@@ -295,7 +323,10 @@ private fun PlayerControls(
 }
 
 @Composable
-private fun CurrentTrackInfo(displayTrack: AudioTrack?) {
+private fun CurrentTrackInfo(
+    displayTrack: AudioTrack?,
+    onLoadArtwork: suspend (String) -> Bitmap?,
+) {
     if (displayTrack == null) {
         Text(
             text = stringResource(R.string.player_no_track_hint),
@@ -303,16 +334,58 @@ private fun CurrentTrackInfo(displayTrack: AudioTrack?) {
         )
         return
     }
-    Column {
-        Text(
-            text = displayTrack.title,
-            style = MaterialTheme.typography.titleMedium,
-        )
-        val artist = displayTrack.artist
-        if (!artist.isNullOrBlank()) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        CoverArt(trackUri = displayTrack.uri, onLoadArtwork = onLoadArtwork)
+        Spacer(modifier = Modifier.size(12.dp))
+        Column {
             Text(
-                text = artist,
-                style = MaterialTheme.typography.bodySmall,
+                text = displayTrack.title,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            val artist = displayTrack.artist
+            if (!artist.isNullOrBlank()) {
+                Text(
+                    text = artist,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CoverArt(
+    trackUri: String,
+    onLoadArtwork: suspend (String) -> Bitmap?,
+) {
+    val cover by produceState<Bitmap?>(initialValue = null, key1 = trackUri) {
+        value = onLoadArtwork(trackUri)
+    }
+    val shape = RoundedCornerShape(8.dp)
+    val bitmap = cover
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = stringResource(R.string.player_cover_art),
+            contentScale = ContentScale.Crop,
+            modifier =
+                Modifier
+                    .size(56.dp)
+                    .clip(shape),
+        )
+    } else {
+        Box(
+            modifier =
+                Modifier
+                    .size(56.dp)
+                    .clip(shape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.MusicNote,
+                contentDescription = stringResource(R.string.player_no_cover_art),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -322,24 +395,44 @@ private fun CurrentTrackInfo(displayTrack: AudioTrack?) {
 private fun ProgressRow(
     positionMs: Long,
     durationMs: Long,
+    isSeekable: Boolean,
+    onSeek: (Long) -> Unit,
 ) {
+    var dragValue by remember { mutableStateOf<Float?>(null) }
     val progress =
         if (durationMs > 0L) {
             (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
         } else {
             0f
         }
+    val sliderValue = dragValue ?: progress
+    val displayedPositionMs = (sliderValue * durationMs).toLong()
+    val seekBarDescription = stringResource(R.string.player_seek_bar)
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        LinearProgressIndicator(
-            progress = { progress },
-            modifier = Modifier.weight(1f),
+        Slider(
+            value = sliderValue,
+            onValueChange = { dragValue = it },
+            onValueChangeFinished = {
+                dragValue?.let { onSeek((it * durationMs).toLong()) }
+                dragValue = null
+            },
+            enabled = isSeekable,
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .semantics { contentDescription = seekBarDescription },
         )
         Spacer(modifier = Modifier.size(8.dp))
         Text(
-            text = formatRemaining(positionMs, durationMs),
+            text =
+                stringResource(
+                    R.string.player_elapsed_of_total,
+                    formatTime(displayedPositionMs),
+                    formatDuration(durationMs),
+                ),
             style = MaterialTheme.typography.bodySmall,
         )
     }
@@ -371,16 +464,31 @@ private fun TransportRow(
             onCheckedChange = { onToggleShuffle() },
             enabled = playEnabled,
         ) {
-            Icon(
-                imageVector = Icons.Filled.Shuffle,
-                contentDescription = shuffleDescription,
-                tint =
-                    if (state.shuffleEnabled) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-            )
+            Box(
+                modifier =
+                    Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (state.shuffleEnabled) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                Color.Transparent
+                            },
+                        ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Shuffle,
+                    contentDescription = shuffleDescription,
+                    tint =
+                        if (state.shuffleEnabled) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                )
+            }
         }
         IconButton(onClick = onPrevious, enabled = state.hasPrevious) {
             Icon(
@@ -411,21 +519,12 @@ private fun TransportRow(
 @Composable
 private fun formatDuration(durationMs: Long): String {
     if (durationMs <= 0L) return stringResource(R.string.home_track_unknown_duration)
-    val totalSeconds = durationMs / 1000
+    return formatTime(durationMs)
+}
+
+private fun formatTime(positionMs: Long): String {
+    val totalSeconds = (positionMs / 1000).coerceAtLeast(0L)
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return String.format(Locale.ROOT, "%d:%02d", minutes, seconds)
-}
-
-@Composable
-private fun formatRemaining(
-    positionMs: Long,
-    durationMs: Long,
-): String {
-    if (durationMs <= 0L) return stringResource(R.string.home_track_unknown_duration)
-    val remaining = (durationMs - positionMs).coerceAtLeast(0L)
-    val totalSeconds = remaining / 1000
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return stringResource(R.string.player_remaining_time, minutes, seconds)
 }
