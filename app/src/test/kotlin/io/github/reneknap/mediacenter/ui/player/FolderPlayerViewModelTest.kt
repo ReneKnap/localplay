@@ -430,4 +430,131 @@ class FolderPlayerViewModelTest {
                 cancelAndIgnoreRemainingEvents()
             }
         }
+
+    // ---------------------------------------------------------------------
+    // Editable queue intents
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `moveTrack delegates to controller`() =
+        runTest {
+            val folderUri = "content://music/a"
+            val tracks = (0..2).map { track("$folderUri/$it") }
+            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val vm = viewModel(folderUri)
+
+            vm.moveTrack(0, 2)
+
+            assertEquals(listOf(0 to 2), controller.movedTracks)
+        }
+
+    @Test
+    fun `deactivateTrack delegates to controller`() =
+        runTest {
+            val folderUri = "content://music/a"
+            val tracks = (0..2).map { track("$folderUri/$it") }
+            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            queue.setQueue(folderUri)
+            val vm = viewModel(folderUri)
+
+            vm.deactivateTrack(1)
+
+            assertEquals(listOf(1), controller.deactivatedPositions)
+        }
+
+    @Test
+    fun `playTrackNext delegates to controller`() =
+        runTest {
+            val folderUri = "content://music/a"
+            val tracks = (0..2).map { track("$folderUri/$it") }
+            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val vm = viewModel(folderUri)
+
+            vm.playTrackNext(2)
+
+            assertEquals(listOf(2), controller.playNextPositions)
+        }
+
+    @Test
+    fun `reactivateTrack delegates to controller`() =
+        runTest {
+            val folderUri = "content://music/a"
+            val tracks = (0..2).map { track("$folderUri/$it") }
+            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val vm = viewModel(folderUri)
+
+            vm.reactivateTrack(2)
+
+            assertEquals(listOf(2), controller.reactivatedTracks)
+        }
+
+    @Test
+    fun `reactivateTrackAt delegates to controller`() =
+        runTest {
+            val folderUri = "content://music/a"
+            val tracks = (0..2).map { track("$folderUri/$it") }
+            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val vm = viewModel(folderUri)
+
+            vm.reactivateTrackAt(2, 1)
+
+            assertEquals(listOf(2 to 1), controller.reactivatedAtTracks)
+        }
+
+    @Test
+    fun `resetQueue delegates to controller`() =
+        runTest {
+            val folderUri = "content://music/a"
+            val tracks = (0..2).map { track("$folderUri/$it") }
+            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val vm = viewModel(folderUri)
+
+            vm.resetQueue()
+
+            assertEquals(1, controller.resetQueueCount)
+        }
+
+    @Test
+    fun `deactivateTrack clears selectedIndex when the selected track is deactivated`() =
+        runTest {
+            val folderUri = "content://music/a"
+            val tracks = (0..2).map { track("$folderUri/$it") }
+            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            queue.setQueue(folderUri)
+            val vm = viewModel(folderUri)
+            vm.selectTrack(1)
+
+            vm.deactivateTrack(1)
+
+            vm.uiState.test {
+                var state: FolderPlayerUiState = awaitItem()
+                while (state !is FolderPlayerUiState.Ready) {
+                    state = awaitItem()
+                }
+                assertNull(state.selectedIndex)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `deactivateTrack keeps selectedIndex when a different track is deactivated`() =
+        runTest {
+            val folderUri = "content://music/a"
+            val tracks = (0..2).map { track("$folderUri/$it") }
+            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            queue.setQueue(folderUri)
+            val vm = viewModel(folderUri)
+            vm.selectTrack(2)
+
+            vm.deactivateTrack(0)
+
+            vm.uiState.test {
+                var state: FolderPlayerUiState = awaitItem()
+                while (state !is FolderPlayerUiState.Ready || state.selectedIndex != 2) {
+                    state = awaitItem()
+                }
+                assertEquals(2, state.selectedIndex)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
 }

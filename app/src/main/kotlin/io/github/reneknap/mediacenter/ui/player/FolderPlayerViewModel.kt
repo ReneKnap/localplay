@@ -108,6 +108,41 @@ class FolderPlayerViewModel
 
         suspend fun artworkFor(uri: String): Bitmap? = artworkReader.loadArtwork(uri)
 
+        suspend fun thumbnailFor(uri: String): Bitmap? = artworkReader.loadArtwork(uri, ROW_THUMBNAIL_SIZE_PX)
+
+        fun moveTrack(
+            fromPosition: Int,
+            toPosition: Int,
+        ) {
+            controller.moveTrack(fromPosition, toPosition)
+        }
+
+        fun deactivateTrack(position: Int) {
+            val active = queue.state.value as? PlaybackQueueState.Active ?: return
+            val trackIndex = active.playbackOrder.getOrNull(position) ?: return
+            if (selectedIndex.value == trackIndex) selectedIndex.value = null
+            controller.deactivateTrack(position)
+        }
+
+        fun playTrackNext(position: Int) {
+            controller.playTrackNext(position)
+        }
+
+        fun reactivateTrack(trackIndex: Int) {
+            controller.reactivateTrack(trackIndex)
+        }
+
+        fun reactivateTrackAt(
+            trackIndex: Int,
+            position: Int,
+        ) {
+            controller.reactivateTrackAt(trackIndex, position)
+        }
+
+        fun resetQueue() {
+            controller.resetQueue()
+        }
+
         fun toggleShuffle() {
             val enabling = !controller.status.value.shuffleEnabled
             if (enabling) {
@@ -132,6 +167,7 @@ class FolderPlayerViewModel
                         folderName = target.folder.displayName,
                         tracks = scan.tracks,
                         displayOrder = active?.playbackOrder ?: scan.tracks.indices.toList(),
+                        deactivatedOrder = active?.deactivated ?: emptyList(),
                         currentIndex = active?.currentIndex,
                         selectedIndex = selected,
                         status = status,
@@ -155,5 +191,6 @@ class FolderPlayerViewModel
             const val STOP_TIMEOUT_MILLIS = 5_000L
             const val ARG_FOLDER_URI = "folderUri"
             const val ARG_START_TRACK_URI = "startTrackUri"
+            const val ROW_THUMBNAIL_SIZE_PX = 128
         }
     }

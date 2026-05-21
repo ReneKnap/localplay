@@ -12,6 +12,7 @@ sealed interface FolderPlayerUiState {
         val folderName: String,
         val tracks: List<AudioTrack>,
         val displayOrder: List<Int>,
+        val deactivatedOrder: List<Int> = emptyList(),
         val currentIndex: Int?,
         val selectedIndex: Int?,
         val status: PlayerStatus,

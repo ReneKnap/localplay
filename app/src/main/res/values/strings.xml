@@ -29,4 +29,10 @@
     <string name="player_no_cover_art">No album cover</string>
     <string name="player_shuffle_on">Shuffle on</string>
     <string name="player_shuffle_off">Shuffle off</string>
+    <string name="player_play_next">Play next</string>
+    <string name="player_remove_from_queue">Remove from queue</string>
+    <string name="player_reorder_handle">Reorder track</string>
+    <string name="player_reset_queue">Reset queue</string>
+    <string name="player_deactivated_section">Removed — tap to re-add</string>
+    <string name="player_reactivate">Re-add to queue</string>
 </resources>
