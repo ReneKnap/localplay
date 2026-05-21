@@ -17,20 +17,25 @@ class ArtworkReaderImpl
     constructor(
         @ApplicationContext private val context: Context,
     ) : ArtworkReader {
-        // Count-based eviction is fine: each entry is downsampled to at most TARGET_SIZE_PX.
+        // Count-based eviction is fine: each entry is downsampled to at most its target size. Keyed by
+        // "uri@size" so the transport-bar cover and the smaller row thumbnails coexist per track.
         private val cache = LruCache<String, Bitmap>(MAX_CACHED_COVERS)
         private val withoutArtwork = Collections.synchronizedSet(mutableSetOf<String>())
 
-        override suspend fun loadArtwork(uri: String): Bitmap? {
-            cache.get(uri)?.let { return it }
+        override suspend fun loadArtwork(
+            uri: String,
+            targetSizePx: Int,
+        ): Bitmap? {
+            val cacheKey = "$uri@$targetSizePx"
+            cache.get(cacheKey)?.let { return it }
             if (uri in withoutArtwork) return null
             return withContext(Dispatchers.IO) {
                 val bytes = readEmbeddedPicture(uri)
-                val bitmap = bytes?.let { decodeDownsampled(it) }
+                val bitmap = bytes?.let { decodeDownsampled(it, targetSizePx) }
                 if (bitmap == null) {
                     withoutArtwork.add(uri)
                 } else {
-                    cache.put(uri, bitmap)
+                    cache.put(cacheKey, bitmap)
                 }
                 bitmap
             }
@@ -50,13 +55,16 @@ class ArtworkReaderImpl
             }
         }
 
-        private fun decodeDownsampled(bytes: ByteArray): Bitmap? {
+        private fun decodeDownsampled(
+            bytes: ByteArray,
+            targetSizePx: Int,
+        ): Bitmap? {
             val bounds =
                 BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
             val options =
                 BitmapFactory.Options().apply {
-                    inSampleSize = sampleSizeFor(bounds.outWidth, bounds.outHeight)
+                    inSampleSize = sampleSizeFor(bounds.outWidth, bounds.outHeight, targetSizePx)
                 }
             return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
         }
@@ -64,19 +72,20 @@ class ArtworkReaderImpl
         private fun sampleSizeFor(
             width: Int,
             height: Int,
+            targetSizePx: Int,
         ): Int {
             if (width <= 0 || height <= 0) return 1
             var inSampleSize = 1
             val halfWidth = width / 2
             val halfHeight = height / 2
-            while (halfWidth / inSampleSize >= TARGET_SIZE_PX && halfHeight / inSampleSize >= TARGET_SIZE_PX) {
+            while (halfWidth / inSampleSize >= targetSizePx && halfHeight / inSampleSize >= targetSizePx) {
                 inSampleSize *= 2
             }
             return inSampleSize
         }
 
         private companion object {
-            const val MAX_CACHED_COVERS = 32
-            const val TARGET_SIZE_PX = 256
+            // Holds covers at multiple sizes per track (transport bar + row thumbnails).
+            const val MAX_CACHED_COVERS = 64
         }
     }

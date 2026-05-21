@@ -7,7 +7,10 @@ class FakeArtworkReader(
 ) : ArtworkReader {
     val requestedUris: MutableList<String> = mutableListOf()
 
-    override suspend fun loadArtwork(uri: String): Bitmap? {
+    override suspend fun loadArtwork(
+        uri: String,
+        targetSizePx: Int,
+    ): Bitmap? {
         requestedUris.add(uri)
         return artwork(uri)
     }
