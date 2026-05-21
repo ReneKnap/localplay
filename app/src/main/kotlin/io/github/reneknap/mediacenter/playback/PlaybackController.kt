@@ -18,4 +18,22 @@ interface PlaybackController {
     fun seekTo(positionMs: Long)
 
     fun setShuffleEnabled(enabled: Boolean)
+
+    fun moveTrack(
+        fromPosition: Int,
+        toPosition: Int,
+    )
+
+    fun deactivateTrack(position: Int)
+
+    fun playTrackNext(position: Int)
+
+    fun reactivateTrack(trackIndex: Int)
+
+    fun reactivateTrackAt(
+        trackIndex: Int,
+        position: Int,
+    )
+
+    fun resetQueue()
 }

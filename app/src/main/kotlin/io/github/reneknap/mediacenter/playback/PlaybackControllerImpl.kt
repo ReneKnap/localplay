@@ -104,6 +104,71 @@ class PlaybackControllerImpl
             }
         }
 
+        override fun moveTrack(
+            fromPosition: Int,
+            toPosition: Int,
+        ) {
+            val state = queue.state.value as? PlaybackQueueState.Active ?: return
+            if (fromPosition !in state.playbackOrder.indices || toPosition !in state.playbackOrder.indices) return
+            if (fromPosition == toPosition) return
+            queue.move(fromPosition, toPosition)
+            engine.moveMediaItem(fromPosition, toPosition)
+        }
+
+        override fun deactivateTrack(position: Int) {
+            val state = queue.state.value as? PlaybackQueueState.Active ?: return
+            if (position !in state.playbackOrder.indices) return
+            if (state.playbackOrder.size == 1) return // keep at least one active track
+            // Mutate the queue first so the engine→queue mirror reconciles the current index against
+            // the already-updated playback order when the running track is the one deactivated.
+            queue.deactivate(position)
+            engine.removeMediaItem(position)
+        }
+
+        override fun playTrackNext(position: Int) {
+            val state = queue.state.value as? PlaybackQueueState.Active ?: return
+            if (position !in state.playbackOrder.indices) return
+            if (position == state.playbackOrder.indexOf(state.currentIndex)) return
+            val movedTrackIndex = state.playbackOrder[position]
+            queue.moveAfterCurrent(position)
+            val targetPosition =
+                (queue.state.value as? PlaybackQueueState.Active)?.playbackOrder?.indexOf(movedTrackIndex) ?: return
+            engine.moveMediaItem(position, targetPosition)
+        }
+
+        override fun reactivateTrack(trackIndex: Int) {
+            val state = queue.state.value as? PlaybackQueueState.Active ?: return
+            if (trackIndex !in state.deactivated) return
+            queue.reactivate(trackIndex)
+            val appendedPosition =
+                (queue.state.value as? PlaybackQueueState.Active)?.playbackOrder?.indexOf(trackIndex) ?: return
+            engine.addMediaItem(appendedPosition, state.tracks[trackIndex])
+        }
+
+        override fun reactivateTrackAt(
+            trackIndex: Int,
+            position: Int,
+        ) {
+            val state = queue.state.value as? PlaybackQueueState.Active ?: return
+            if (trackIndex !in state.deactivated) return
+            queue.reactivateAt(trackIndex, position)
+            val insertedPosition =
+                (queue.state.value as? PlaybackQueueState.Active)?.playbackOrder?.indexOf(trackIndex) ?: return
+            engine.addMediaItem(insertedPosition, state.tracks[trackIndex])
+        }
+
+        override fun resetQueue() {
+            val state = queue.state.value as? PlaybackQueueState.Active ?: return
+            queue.reset()
+            val newState = queue.state.value as? PlaybackQueueState.Active ?: return
+            val startIndex = newState.playbackOrder.indexOf(newState.currentIndex)
+            // Re-push the full folder order; keep the current track playing at its position (null).
+            engine.setQueue(newState.toOrderedItems(), startIndex, engine.playWhenReady.value, startPositionMs = null)
+            scope.launch {
+                playbackPreferences.setShuffleEnabled(false)
+            }
+        }
+
         private fun mirrorPlayerPositionToQueue(playerPos: Int) {
             val state = queue.state.value as? PlaybackQueueState.Active ?: return
             if (playerPos !in state.playbackOrder.indices) return

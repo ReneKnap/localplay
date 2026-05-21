@@ -12,6 +12,13 @@ class FakePlaybackController : PlaybackController {
     val playedIndexes: MutableList<Int> = mutableListOf()
     val seekedPositions: MutableList<Long> = mutableListOf()
     val shuffleEnabledCalls: MutableList<Boolean> = mutableListOf()
+    val movedTracks: MutableList<Pair<Int, Int>> = mutableListOf()
+    val deactivatedPositions: MutableList<Int> = mutableListOf()
+    val playNextPositions: MutableList<Int> = mutableListOf()
+    val reactivatedTracks: MutableList<Int> = mutableListOf()
+    val reactivatedAtTracks: MutableList<Pair<Int, Int>> = mutableListOf()
+    var resetQueueCount: Int = 0
+        private set
     var togglePlayPauseCount: Int = 0
         private set
     var nextCount: Int = 0
@@ -45,6 +52,36 @@ class FakePlaybackController : PlaybackController {
 
     override fun setShuffleEnabled(enabled: Boolean) {
         shuffleEnabledCalls.add(enabled)
+    }
+
+    override fun moveTrack(
+        fromPosition: Int,
+        toPosition: Int,
+    ) {
+        movedTracks.add(fromPosition to toPosition)
+    }
+
+    override fun deactivateTrack(position: Int) {
+        deactivatedPositions.add(position)
+    }
+
+    override fun playTrackNext(position: Int) {
+        playNextPositions.add(position)
+    }
+
+    override fun reactivateTrack(trackIndex: Int) {
+        reactivatedTracks.add(trackIndex)
+    }
+
+    override fun reactivateTrackAt(
+        trackIndex: Int,
+        position: Int,
+    ) {
+        reactivatedAtTracks.add(trackIndex to position)
+    }
+
+    override fun resetQueue() {
+        resetQueueCount += 1
     }
 
     fun emitStatus(status: PlayerStatus) {
