@@ -126,6 +126,33 @@ class MediaEngineImpl
             withController { c -> c.seekToDefaultPosition(index) }
         }
 
+        override fun moveMediaItem(
+            fromIndex: Int,
+            toIndex: Int,
+        ) {
+            withController { c ->
+                c.moveMediaItem(fromIndex, toIndex)
+                _currentMediaItemIndex.value = c.currentMediaItemIndex
+            }
+        }
+
+        override fun removeMediaItem(index: Int) {
+            withController { c ->
+                c.removeMediaItem(index)
+                _currentMediaItemIndex.value = c.currentMediaItemIndex
+            }
+        }
+
+        override fun addMediaItem(
+            index: Int,
+            item: AudioTrack,
+        ) {
+            withController { c ->
+                c.addMediaItem(index, item.toMediaItem())
+                _currentMediaItemIndex.value = c.currentMediaItemIndex
+            }
+        }
+
         override fun seekTo(positionMs: Long) {
             withController { c ->
                 c.seekTo(positionMs)
