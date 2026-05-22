@@ -173,6 +173,23 @@ class FolderPlayerViewModelTest {
         }
 
     @Test
+    fun `ready folder with no tracks yields EmptyFolder with folder name`() =
+        runTest {
+            val folderUri = "content://music/empty"
+            audioRepository.emit(listOf(readyFolder(folderUri, "Empty Album", emptyList())))
+            val vm = viewModel(folderUri)
+
+            vm.uiState.test {
+                var state: FolderPlayerUiState = awaitItem()
+                while (state is FolderPlayerUiState.Loading) {
+                    state = awaitItem()
+                }
+                assertEquals(FolderPlayerUiState.EmptyFolder("Empty Album"), state)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
     fun `selectTrack sets selectedIndex`() =
         runTest {
             val folderUri = "content://music/a"

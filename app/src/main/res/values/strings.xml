@@ -23,6 +23,10 @@
     <string name="player_next">Next track</string>
     <string name="player_previous">Previous track</string>
     <string name="player_folder_unavailable">Folder not available</string>
+    <string name="player_folder_unavailable_message">This folder was removed or is no longer accessible.</string>
+    <string name="player_empty_folder_title">No audio files here</string>
+    <string name="player_empty_folder_message">MediaCenter didn\'t find any playable audio in this folder.</string>
+    <string name="status_back_to_folders">Back to folders</string>
     <string name="player_no_track_hint">Tap a track and press play, or press play to start with the first track</string>
     <string name="player_now_playing_content_description">Now playing</string>
     <string name="player_unknown_track">Unknown track</string>

@@ -8,6 +8,8 @@ sealed interface FolderPlayerUiState {
 
     data object NotAvailable : FolderPlayerUiState
 
+    data class EmptyFolder(val folderName: String) : FolderPlayerUiState
+
     data class Ready(
         val folderName: String,
         val tracks: List<AudioTrack>,

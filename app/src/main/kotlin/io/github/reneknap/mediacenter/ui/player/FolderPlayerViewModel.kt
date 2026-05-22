@@ -161,21 +161,24 @@ class FolderPlayerViewModel
             return when (val scan = target.scan) {
                 FolderScanState.Scanning -> FolderPlayerUiState.Loading
                 FolderScanState.Unreachable -> FolderPlayerUiState.NotAvailable
-                is FolderScanState.Ready -> {
-                    val active = activeForFolder(queueState)
-                    FolderPlayerUiState.Ready(
-                        folderName = target.folder.displayName,
-                        tracks = scan.tracks,
-                        displayOrder = active?.playbackOrder ?: scan.tracks.indices.toList(),
-                        deactivatedOrder = active?.deactivated ?: emptyList(),
-                        currentIndex = active?.currentIndex,
-                        selectedIndex = selected,
-                        status = status,
-                        shuffleEnabled = status.shuffleEnabled,
-                        hasNext = active?.hasNext ?: false,
-                        hasPrevious = active?.hasPrevious ?: false,
-                    )
-                }
+                is FolderScanState.Ready ->
+                    if (scan.tracks.isEmpty()) {
+                        FolderPlayerUiState.EmptyFolder(target.folder.displayName)
+                    } else {
+                        val active = activeForFolder(queueState)
+                        FolderPlayerUiState.Ready(
+                            folderName = target.folder.displayName,
+                            tracks = scan.tracks,
+                            displayOrder = active?.playbackOrder ?: scan.tracks.indices.toList(),
+                            deactivatedOrder = active?.deactivated ?: emptyList(),
+                            currentIndex = active?.currentIndex,
+                            selectedIndex = selected,
+                            status = status,
+                            shuffleEnabled = status.shuffleEnabled,
+                            hasNext = active?.hasNext ?: false,
+                            hasPrevious = active?.hasPrevious ?: false,
+                        )
+                    }
             }
         }
 

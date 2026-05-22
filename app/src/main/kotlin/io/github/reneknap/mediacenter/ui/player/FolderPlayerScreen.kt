@@ -31,12 +31,14 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.MusicOff
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -78,13 +80,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.reneknap.mediacenter.R
 import io.github.reneknap.mediacenter.data.audio.AudioTrack
+import io.github.reneknap.mediacenter.ui.components.StatusMessage
 import java.util.Locale
 
 @Composable
@@ -194,7 +196,8 @@ private fun FolderPlayerContent(
         ) {
             when (uiState) {
                 FolderPlayerUiState.Loading -> LoadingState()
-                FolderPlayerUiState.NotAvailable -> NotAvailableState()
+                FolderPlayerUiState.NotAvailable -> NotAvailableState(onBack = onBack)
+                is FolderPlayerUiState.EmptyFolder -> EmptyFolderState(onBack = onBack)
                 is FolderPlayerUiState.Ready ->
                     TrackList(
                         state = uiState,
@@ -215,6 +218,7 @@ private fun FolderPlayerContent(
 private fun folderTitle(uiState: FolderPlayerUiState): String =
     when (uiState) {
         is FolderPlayerUiState.Ready -> uiState.folderName
+        is FolderPlayerUiState.EmptyFolder -> uiState.folderName
         else -> ""
     }
 
@@ -229,20 +233,26 @@ private fun LoadingState() {
 }
 
 @Composable
-private fun NotAvailableState() {
-    Box(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = stringResource(R.string.player_folder_unavailable),
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-        )
-    }
+private fun NotAvailableState(onBack: () -> Unit) {
+    StatusMessage(
+        icon = Icons.Filled.Warning,
+        title = stringResource(R.string.player_folder_unavailable),
+        description = stringResource(R.string.player_folder_unavailable_message),
+        iconTint = MaterialTheme.colorScheme.error,
+        actionLabel = stringResource(R.string.status_back_to_folders),
+        onAction = onBack,
+    )
+}
+
+@Composable
+private fun EmptyFolderState(onBack: () -> Unit) {
+    StatusMessage(
+        icon = Icons.Filled.MusicOff,
+        title = stringResource(R.string.player_empty_folder_title),
+        description = stringResource(R.string.player_empty_folder_message),
+        actionLabel = stringResource(R.string.status_back_to_folders),
+        onAction = onBack,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
