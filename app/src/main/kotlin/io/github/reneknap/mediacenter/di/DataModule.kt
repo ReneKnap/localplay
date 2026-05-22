@@ -29,6 +29,8 @@ import io.github.reneknap.mediacenter.data.folder.FolderRepository
 import io.github.reneknap.mediacenter.data.folder.FolderRepositoryImpl
 import io.github.reneknap.mediacenter.data.playback.PlaybackPreferencesDataSource
 import io.github.reneknap.mediacenter.data.playback.PlaybackPreferencesDataSourceImpl
+import io.github.reneknap.mediacenter.data.theme.ThemePreferencesDataSource
+import io.github.reneknap.mediacenter.data.theme.ThemePreferencesDataSourceImpl
 import kotlinx.serialization.json.Json
 import javax.inject.Singleton
 import kotlin.random.Random
@@ -73,6 +75,10 @@ abstract class DataModule {
     abstract fun bindPlaybackPreferencesDataSource(
         impl: PlaybackPreferencesDataSourceImpl,
     ): PlaybackPreferencesDataSource
+
+    @Binds
+    @Singleton
+    abstract fun bindThemePreferencesDataSource(impl: ThemePreferencesDataSourceImpl): ThemePreferencesDataSource
 
     companion object {
         @Provides
