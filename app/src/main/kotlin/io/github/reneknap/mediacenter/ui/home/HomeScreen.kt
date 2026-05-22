@@ -13,11 +13,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BrightnessAuto
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -33,9 +37,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.reneknap.mediacenter.R
 import io.github.reneknap.mediacenter.data.audio.FolderTracks
+import io.github.reneknap.mediacenter.data.theme.ThemeMode
 
 @Composable
 fun HomeScreen(
+    themeMode: ThemeMode,
+    onToggleTheme: () -> Unit,
     onFolderClick: (String) -> Unit,
     onPreviewTrackClick: (folderUri: String, trackUri: String) -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
@@ -51,6 +58,8 @@ fun HomeScreen(
 
     HomeContent(
         uiState = uiState,
+        themeMode = themeMode,
+        onToggleTheme = onToggleTheme,
         onPickFolder = { pickerLauncher.launch(null) },
         onRemoveFolder = viewModel::removeFolder,
         onFolderClick = onFolderClick,
@@ -62,6 +71,8 @@ fun HomeScreen(
 @Composable
 private fun HomeContent(
     uiState: HomeUiState,
+    themeMode: ThemeMode,
+    onToggleTheme: () -> Unit,
     onPickFolder: () -> Unit,
     onRemoveFolder: (String) -> Unit,
     onFolderClick: (String) -> Unit,
@@ -69,7 +80,12 @@ private fun HomeContent(
 ) {
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text(stringResource(R.string.app_name)) })
+            TopAppBar(
+                title = { Text(stringResource(R.string.app_name)) },
+                actions = {
+                    ThemeToggleButton(themeMode = themeMode, onToggleTheme = onToggleTheme)
+                },
+            )
         },
         floatingActionButton = {
             if (uiState is HomeUiState.Folders) {
@@ -100,6 +116,25 @@ private fun HomeContent(
                     )
             }
         }
+    }
+}
+
+@Composable
+private fun ThemeToggleButton(
+    themeMode: ThemeMode,
+    onToggleTheme: () -> Unit,
+) {
+    val (icon, descriptionRes) =
+        when (themeMode) {
+            ThemeMode.DARK -> Icons.Filled.DarkMode to R.string.theme_toggle_dark
+            ThemeMode.LIGHT -> Icons.Filled.LightMode to R.string.theme_toggle_light
+            ThemeMode.SYSTEM -> Icons.Filled.BrightnessAuto to R.string.theme_toggle_system
+        }
+    IconButton(onClick = onToggleTheme) {
+        Icon(
+            imageVector = icon,
+            contentDescription = stringResource(descriptionRes),
+        )
     }
 }
 

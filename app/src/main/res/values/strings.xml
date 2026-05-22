@@ -7,6 +7,9 @@
     <string name="home_pick_folder_button">Pick a folder</string>
     <string name="home_add_folder">Add folder</string>
     <string name="home_remove_folder">Remove folder</string>
+    <string name="theme_toggle_dark">Switch theme (currently dark)</string>
+    <string name="theme_toggle_light">Switch theme (currently light)</string>
+    <string name="theme_toggle_system">Switch theme (currently automatic)</string>
     <string name="home_folder_not_accessible">Folder not accessible</string>
     <string name="home_folder_scanning">Scanning…</string>
     <string name="home_folder_no_audio">No audio files</string>
