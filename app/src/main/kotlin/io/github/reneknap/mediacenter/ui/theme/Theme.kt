@@ -7,13 +7,20 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import io.github.reneknap.mediacenter.data.theme.ThemeMode
 
 @Composable
 fun MediaCenterTheme(
-    useDarkTheme: Boolean = isSystemInDarkTheme(),
-    useDynamicColor: Boolean = true,
+    themeMode: ThemeMode = ThemeMode.DARK,
     content: @Composable () -> Unit,
 ) {
+    val useDarkTheme =
+        when (themeMode) {
+            ThemeMode.DARK -> true
+            ThemeMode.LIGHT -> false
+            ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        }
+    val useDynamicColor = themeMode == ThemeMode.SYSTEM
     val supportsDynamic = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val context = LocalContext.current
 

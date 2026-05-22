@@ -10,9 +10,13 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import io.github.reneknap.mediacenter.ui.MediaCenterNavGraph
 import io.github.reneknap.mediacenter.ui.theme.MediaCenterTheme
+import io.github.reneknap.mediacenter.ui.theme.ThemeViewModel
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -20,9 +24,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MediaCenterTheme {
+            val themeViewModel: ThemeViewModel = hiltViewModel()
+            val themeMode by themeViewModel.themeMode.collectAsStateWithLifecycle()
+            MediaCenterTheme(themeMode = themeMode) {
                 RequestNotificationPermission()
-                MediaCenterNavGraph()
+                MediaCenterNavGraph(
+                    themeMode = themeMode,
+                    onToggleTheme = themeViewModel::cycleTheme,
+                )
             }
         }
     }
