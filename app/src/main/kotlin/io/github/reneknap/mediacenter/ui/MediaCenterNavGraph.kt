@@ -1,6 +1,7 @@
 package io.github.reneknap.mediacenter.ui
 
 import android.net.Uri
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -25,6 +26,10 @@ fun MediaCenterNavGraph(
     NavHost(
         navController = navController,
         startDestination = ROUTE_HOME,
+        enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left) },
+        exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left) },
+        popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right) },
+        popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right) },
     ) {
         composable(ROUTE_HOME) {
             HomeScreen(
