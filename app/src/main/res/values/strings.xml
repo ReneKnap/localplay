@@ -13,6 +13,7 @@
     <string name="home_more_options">More options</string>
 
     <string name="support_menu_item">Support development</string>
+    <string name="support_rate">Rate the app</string>
     <string name="support_dialog_title">Support MediaCenter</string>
     <string name="support_dialog_body">MediaCenter is free and won\'t bombard you with ads or pop-ups. If you\'d like to support its development, leaving a rating or a small donation goes a long way.</string>
     <string name="support_coffee">Buy me a coffee</string>

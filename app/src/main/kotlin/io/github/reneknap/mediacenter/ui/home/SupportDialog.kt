@@ -21,6 +21,7 @@ import io.github.reneknap.mediacenter.R
 @Composable
 fun SupportDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
+    val playStoreUrl = "https://play.google.com/store/apps/details?id=${context.packageName}"
     val coffeeUrl = stringResource(R.string.support_coffee_url)
     val paypalUrl = stringResource(R.string.support_paypal_url)
 
@@ -30,6 +31,12 @@ fun SupportDialog(onDismiss: () -> Unit) {
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.support_dialog_body))
+                Button(
+                    onClick = { context.openUrl(playStoreUrl) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.support_rate))
+                }
                 Button(
                     onClick = { context.openUrl(coffeeUrl) },
                     modifier = Modifier.fillMaxWidth(),
