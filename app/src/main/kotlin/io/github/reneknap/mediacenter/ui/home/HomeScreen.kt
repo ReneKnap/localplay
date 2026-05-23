@@ -14,7 +14,10 @@ import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -26,6 +29,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -76,12 +82,23 @@ private fun HomeContent(
     onFolderClick: (String) -> Unit,
     onPreviewTrackClick: (folderUri: String, trackUri: String) -> Unit,
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
+    var showSupportDialog by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
                     ThemeToggleButton(themeMode = themeMode, onToggleTheme = onToggleTheme)
+                    HomeOverflowMenu(
+                        expanded = menuExpanded,
+                        onExpandedChange = { menuExpanded = it },
+                        onSupportClick = {
+                            menuExpanded = false
+                            showSupportDialog = true
+                        },
+                    )
                 },
                 colors =
                     TopAppBarDefaults.topAppBarColors(
@@ -117,6 +134,34 @@ private fun HomeContent(
                         onPreviewTrackClick = onPreviewTrackClick,
                     )
             }
+        }
+        if (showSupportDialog) {
+            SupportDialog(onDismiss = { showSupportDialog = false })
+        }
+    }
+}
+
+@Composable
+private fun HomeOverflowMenu(
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onSupportClick: () -> Unit,
+) {
+    Box {
+        IconButton(onClick = { onExpandedChange(true) }) {
+            Icon(
+                imageVector = Icons.Filled.MoreVert,
+                contentDescription = stringResource(R.string.home_more_options),
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { onExpandedChange(false) },
+        ) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.support_menu_item)) },
+                onClick = onSupportClick,
+            )
         }
     }
 }
