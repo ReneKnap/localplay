@@ -15,6 +15,8 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -50,8 +52,10 @@ fun HomeScreen(
     onFolderClick: (String) -> Unit,
     onPreviewTrackClick: (folderUri: String, trackUri: String) -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
+    supportHintViewModel: SupportHintViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val showSupportHint by supportHintViewModel.showSupportHint.collectAsStateWithLifecycle()
 
     val pickerLauncher =
         rememberLauncherForActivityResult(
@@ -63,7 +67,9 @@ fun HomeScreen(
     HomeContent(
         uiState = uiState,
         themeMode = themeMode,
+        showSupportHint = showSupportHint,
         onToggleTheme = onToggleTheme,
+        onSupportMenuOpened = supportHintViewModel::onSupportMenuOpened,
         onPickFolder = { pickerLauncher.launch(null) },
         onRemoveFolder = viewModel::removeFolder,
         onFolderClick = onFolderClick,
@@ -76,7 +82,9 @@ fun HomeScreen(
 private fun HomeContent(
     uiState: HomeUiState,
     themeMode: ThemeMode,
+    showSupportHint: Boolean,
     onToggleTheme: () -> Unit,
+    onSupportMenuOpened: () -> Unit,
     onPickFolder: () -> Unit,
     onRemoveFolder: (String) -> Unit,
     onFolderClick: (String) -> Unit,
@@ -93,7 +101,13 @@ private fun HomeContent(
                     ThemeToggleButton(themeMode = themeMode, onToggleTheme = onToggleTheme)
                     HomeOverflowMenu(
                         expanded = menuExpanded,
-                        onExpandedChange = { menuExpanded = it },
+                        showBadge = showSupportHint,
+                        onExpandedChange = { expanded ->
+                            menuExpanded = expanded
+                            if (expanded) {
+                                onSupportMenuOpened()
+                            }
+                        },
                         onSupportClick = {
                             menuExpanded = false
                             showSupportDialog = true
@@ -144,15 +158,24 @@ private fun HomeContent(
 @Composable
 private fun HomeOverflowMenu(
     expanded: Boolean,
+    showBadge: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onSupportClick: () -> Unit,
 ) {
     Box {
-        IconButton(onClick = { onExpandedChange(true) }) {
-            Icon(
-                imageVector = Icons.Filled.MoreVert,
-                contentDescription = stringResource(R.string.home_more_options),
-            )
+        BadgedBox(
+            badge = {
+                if (showBadge) {
+                    Badge()
+                }
+            },
+        ) {
+            IconButton(onClick = { onExpandedChange(true) }) {
+                Icon(
+                    imageVector = Icons.Filled.MoreVert,
+                    contentDescription = stringResource(R.string.home_more_options),
+                )
+            }
         }
         DropdownMenu(
             expanded = expanded,

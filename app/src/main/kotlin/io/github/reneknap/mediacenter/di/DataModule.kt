@@ -29,6 +29,8 @@ import io.github.reneknap.mediacenter.data.folder.FolderRepository
 import io.github.reneknap.mediacenter.data.folder.FolderRepositoryImpl
 import io.github.reneknap.mediacenter.data.playback.PlaybackPreferencesDataSource
 import io.github.reneknap.mediacenter.data.playback.PlaybackPreferencesDataSourceImpl
+import io.github.reneknap.mediacenter.data.review.ReviewPreferencesDataSource
+import io.github.reneknap.mediacenter.data.review.ReviewPreferencesDataSourceImpl
 import io.github.reneknap.mediacenter.data.theme.ThemePreferencesDataSource
 import io.github.reneknap.mediacenter.data.theme.ThemePreferencesDataSourceImpl
 import kotlinx.serialization.json.Json
@@ -79,6 +81,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindThemePreferencesDataSource(impl: ThemePreferencesDataSourceImpl): ThemePreferencesDataSource
+
+    @Binds
+    @Singleton
+    abstract fun bindReviewPreferencesDataSource(impl: ReviewPreferencesDataSourceImpl): ReviewPreferencesDataSource
 
     companion object {
         @Provides
