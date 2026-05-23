@@ -4,17 +4,14 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Three ascending eighth notes; each note = head + stem + flag, spaced close together -->
-    <!-- Note heads -->
+    <!-- Single-tone silhouette of the brand mark; the system retints this for themed icons -->
     <path
-        android:fillColor="#E0701A"
+        android:fillColor="#000000"
         android:pathData="M26,72 a5,5 0 1 1 10,0 a5,5 0 1 1 -10,0 Z M45,72 a5,5 0 1 1 10,0 a5,5 0 1 1 -10,0 Z M64,72 a5,5 0 1 1 10,0 a5,5 0 1 1 -10,0 Z" />
-    <!-- Note stems -->
     <path
-        android:fillColor="#E0701A"
+        android:fillColor="#000000"
         android:pathData="M34,50 L37,50 L37,72 L34,72 Z M53,40 L56,40 L56,72 L53,72 Z M72,30 L75,30 L75,72 L72,72 Z" />
-    <!-- Note flags -->
     <path
-        android:fillColor="#E0701A"
+        android:fillColor="#000000"
         android:pathData="M37,50 C43,52 45,58 40,62 C43,58 40,54 37,55 Z M56,40 C62,42 64,48 59,52 C62,48 59,44 56,45 Z M75,30 C81,32 83,38 78,42 C81,38 78,34 75,35 Z" />
 </vector>
