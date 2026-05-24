@@ -50,6 +50,7 @@ fun HomeScreen(
     onToggleTheme: () -> Unit,
     onFolderClick: (String) -> Unit,
     onPreviewTrackClick: (folderUri: String, trackUri: String) -> Unit,
+    onVideoClick: (folderUri: String, videoUri: String) -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
     supportHintViewModel: SupportHintViewModel = hiltViewModel(),
 ) {
@@ -73,6 +74,7 @@ fun HomeScreen(
         onRemoveFolder = viewModel::removeFolder,
         onFolderClick = onFolderClick,
         onPreviewTrackClick = onPreviewTrackClick,
+        onVideoClick = onVideoClick,
     )
 }
 
@@ -88,6 +90,7 @@ private fun HomeContent(
     onRemoveFolder: (String) -> Unit,
     onFolderClick: (String) -> Unit,
     onPreviewTrackClick: (folderUri: String, trackUri: String) -> Unit,
+    onVideoClick: (folderUri: String, videoUri: String) -> Unit,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     var showSupportDialog by remember { mutableStateOf(false) }
@@ -145,6 +148,7 @@ private fun HomeContent(
                         onRemove = onRemoveFolder,
                         onFolderClick = onFolderClick,
                         onPreviewTrackClick = onPreviewTrackClick,
+                        onVideoClick = onVideoClick,
                     )
             }
         }
@@ -235,6 +239,7 @@ private fun FolderList(
     onRemove: (String) -> Unit,
     onFolderClick: (String) -> Unit,
     onPreviewTrackClick: (folderUri: String, trackUri: String) -> Unit,
+    onVideoClick: (folderUri: String, videoUri: String) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -246,6 +251,7 @@ private fun FolderList(
                 onRemove = { onRemove(folderMedia.folder.uri) },
                 onFolderClick = { onFolderClick(folderMedia.folder.uri) },
                 onPreviewTrackClick = { trackUri -> onPreviewTrackClick(folderMedia.folder.uri, trackUri) },
+                onVideoClick = { videoUri -> onVideoClick(folderMedia.folder.uri, videoUri) },
             )
         }
     }

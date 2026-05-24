@@ -44,6 +44,7 @@ fun FolderListItem(
     onRemove: () -> Unit,
     onFolderClick: () -> Unit,
     onPreviewTrackClick: (trackUri: String) -> Unit,
+    onVideoClick: (videoUri: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember(folderMedia.folder.uri) { mutableStateOf(false) }
@@ -101,7 +102,7 @@ fun FolderListItem(
             if (videos.isNotEmpty()) {
                 SectionCaption(stringResource(R.string.home_folder_videos_section))
                 videos.forEach { video ->
-                    VideoRow(video = video)
+                    VideoRow(video = video, onClick = { onVideoClick(video.uri) })
                 }
             }
             HorizontalDivider()
@@ -189,12 +190,16 @@ private fun PreviewTrackRow(
 }
 
 @Composable
-private fun VideoRow(video: VideoItem) {
+private fun VideoRow(
+    video: VideoItem,
+    onClick: () -> Unit,
+) {
     Row(
         modifier =
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = 48.dp)
+                .clickable(onClick = onClick)
                 .padding(start = 56.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
