@@ -41,7 +41,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.reneknap.mediacenter.R
-import io.github.reneknap.mediacenter.data.audio.FolderTracks
 import io.github.reneknap.mediacenter.data.theme.ThemeMode
 import io.github.reneknap.mediacenter.ui.components.StatusMessage
 
@@ -232,7 +231,7 @@ private fun EmptyState(onPickFolder: () -> Unit) {
 
 @Composable
 private fun FolderList(
-    folders: List<FolderTracks>,
+    folders: List<FolderMediaUi>,
     onRemove: (String) -> Unit,
     onFolderClick: (String) -> Unit,
     onPreviewTrackClick: (folderUri: String, trackUri: String) -> Unit,
@@ -241,12 +240,12 @@ private fun FolderList(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 88.dp),
     ) {
-        items(items = folders, key = { it.folder.uri }) { folderTracks ->
+        items(items = folders, key = { it.folder.uri }) { folderMedia ->
             FolderListItem(
-                folderTracks = folderTracks,
-                onRemove = { onRemove(folderTracks.folder.uri) },
-                onFolderClick = { onFolderClick(folderTracks.folder.uri) },
-                onPreviewTrackClick = { trackUri -> onPreviewTrackClick(folderTracks.folder.uri, trackUri) },
+                folderMedia = folderMedia,
+                onRemove = { onRemove(folderMedia.folder.uri) },
+                onFolderClick = { onFolderClick(folderMedia.folder.uri) },
+                onPreviewTrackClick = { trackUri -> onPreviewTrackClick(folderMedia.folder.uri, trackUri) },
             )
         }
     }

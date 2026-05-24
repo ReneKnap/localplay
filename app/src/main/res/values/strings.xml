@@ -26,6 +26,12 @@
     <string name="home_folder_no_audio">No audio files</string>
     <string name="home_folder_track_count">%1$d tracks</string>
     <string name="home_folder_track_count_one">1 track</string>
+    <string name="home_folder_no_videos">No videos</string>
+    <string name="home_folder_video_count">%1$d videos</string>
+    <string name="home_folder_video_count_one">1 video</string>
+    <string name="home_folder_media_summary">%1$s · %2$s</string>
+    <string name="home_folder_videos_section">Videos</string>
+    <string name="home_video_resolution">%1$d×%2$d</string>
     <string name="home_track_unknown_duration">—</string>
 
     <string name="player_back">Back</string>
