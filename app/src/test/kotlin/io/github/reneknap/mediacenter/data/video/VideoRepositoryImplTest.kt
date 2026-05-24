@@ -1,11 +1,11 @@
-package io.github.reneknap.mediacenter.data.audio
+package io.github.reneknap.mediacenter.data.video
 
 import app.cash.turbine.test
+import io.github.reneknap.mediacenter.data.audio.AudioTrack
 import io.github.reneknap.mediacenter.data.folder.FolderEntry
 import io.github.reneknap.mediacenter.data.media.FakeMediaScanIndex
 import io.github.reneknap.mediacenter.data.media.FolderMedia
 import io.github.reneknap.mediacenter.data.media.MediaScanState
-import io.github.reneknap.mediacenter.data.video.VideoItem
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -13,8 +13,20 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class AudioRepositoryImplTest {
-    private val entry = FolderEntry("content://music/folder", "Folder", isReachable = true)
+class VideoRepositoryImplTest {
+    private val entry = FolderEntry("content://media/folder", "Folder", isReachable = true)
+
+    private fun videoItem(name: String) =
+        VideoItem(
+            uri = "${entry.uri}/$name",
+            folderUri = entry.uri,
+            displayName = name,
+            mimeType = "video/mp4",
+            sizeBytes = 0L,
+            durationMs = 1_000L,
+            width = 640,
+            height = 480,
+        )
 
     private fun audioTrack(name: String) =
         AudioTrack(
@@ -29,46 +41,34 @@ class AudioRepositoryImplTest {
             durationMs = 0L,
         )
 
-    private fun videoItem(name: String) =
-        VideoItem(
-            uri = "${entry.uri}/$name",
-            folderUri = entry.uri,
-            displayName = name,
-            mimeType = "video/mp4",
-            sizeBytes = 0L,
-            durationMs = 1_000L,
-            width = 640,
-            height = 480,
-        )
-
     @Test
     fun `empty index yields empty list`() =
         runTest {
-            val repo = AudioRepositoryImpl(FakeMediaScanIndex())
+            val repo = VideoRepositoryImpl(FakeMediaScanIndex())
 
             repo.folders.test {
-                assertEquals(emptyList<FolderTracks>(), awaitItem())
+                assertEquals(emptyList<FolderVideos>(), awaitItem())
                 cancelAndIgnoreRemainingEvents()
             }
         }
 
     @Test
-    fun `Scanning media state projects to Scanning audio state`() =
+    fun `Scanning media state projects to Scanning video state`() =
         runTest {
             val index = FakeMediaScanIndex(listOf(FolderMedia(entry, MediaScanState.Scanning)))
-            val repo = AudioRepositoryImpl(index)
+            val repo = VideoRepositoryImpl(index)
 
             repo.folders.test {
                 val folders = awaitItem()
                 assertEquals(1, folders.size)
                 assertEquals(entry, folders[0].folder)
-                assertEquals(FolderScanState.Scanning, folders[0].scan)
+                assertEquals(VideoScanState.Scanning, folders[0].scan)
                 cancelAndIgnoreRemainingEvents()
             }
         }
 
     @Test
-    fun `Ready media state projects only the audio list`() =
+    fun `Ready media state projects only the video list`() =
         runTest {
             val ready =
                 MediaScanState.Ready(
@@ -76,25 +76,25 @@ class AudioRepositoryImplTest {
                     video = listOf(videoItem("clip.mp4")),
                 )
             val index = FakeMediaScanIndex(listOf(FolderMedia(entry, ready)))
-            val repo = AudioRepositoryImpl(index)
+            val repo = VideoRepositoryImpl(index)
 
             repo.folders.test {
                 val state = awaitItem()[0].scan
-                assertTrue(state is FolderScanState.Ready)
-                state as FolderScanState.Ready
-                assertEquals(listOf("song.mp3"), state.tracks.map { it.displayName })
+                assertTrue(state is VideoScanState.Ready)
+                state as VideoScanState.Ready
+                assertEquals(listOf("clip.mp4"), state.videos.map { it.displayName })
                 cancelAndIgnoreRemainingEvents()
             }
         }
 
     @Test
-    fun `Unreachable media state projects to Unreachable audio state`() =
+    fun `Unreachable media state projects to Unreachable video state`() =
         runTest {
             val index = FakeMediaScanIndex(listOf(FolderMedia(entry, MediaScanState.Unreachable)))
-            val repo = AudioRepositoryImpl(index)
+            val repo = VideoRepositoryImpl(index)
 
             repo.folders.test {
-                assertEquals(FolderScanState.Unreachable, awaitItem()[0].scan)
+                assertEquals(VideoScanState.Unreachable, awaitItem()[0].scan)
                 cancelAndIgnoreRemainingEvents()
             }
         }

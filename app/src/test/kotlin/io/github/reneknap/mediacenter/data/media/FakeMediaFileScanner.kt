@@ -1,14 +1,14 @@
-package io.github.reneknap.mediacenter.data.audio
+package io.github.reneknap.mediacenter.data.media
 
 import kotlinx.coroutines.CompletableDeferred
 
-class FakeAudioFileScanner : AudioFileScanner {
-    private val pending = mutableMapOf<String, CompletableDeferred<List<RawAudioFile>>>()
+class FakeMediaFileScanner : MediaFileScanner {
+    private val pending = mutableMapOf<String, CompletableDeferred<List<RawMediaFile>>>()
     val scannedUris: MutableList<String> = mutableListOf()
 
     fun setResult(
         folderUri: String,
-        files: List<RawAudioFile>,
+        files: List<RawMediaFile>,
     ) {
         pending.getOrPut(folderUri) { CompletableDeferred() }.complete(files)
     }
@@ -20,7 +20,7 @@ class FakeAudioFileScanner : AudioFileScanner {
         pending.getOrPut(folderUri) { CompletableDeferred() }.completeExceptionally(error)
     }
 
-    override suspend fun scan(folderUri: String): List<RawAudioFile> {
+    override suspend fun scan(folderUri: String): List<RawMediaFile> {
         scannedUris.add(folderUri)
         return pending.getOrPut(folderUri) { CompletableDeferred() }.await()
     }

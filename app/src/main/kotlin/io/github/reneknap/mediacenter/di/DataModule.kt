@@ -13,8 +13,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import io.github.reneknap.mediacenter.data.audio.ArtworkReader
 import io.github.reneknap.mediacenter.data.audio.ArtworkReaderImpl
-import io.github.reneknap.mediacenter.data.audio.AudioFileScanner
-import io.github.reneknap.mediacenter.data.audio.AudioFileScannerImpl
 import io.github.reneknap.mediacenter.data.audio.AudioRepository
 import io.github.reneknap.mediacenter.data.audio.AudioRepositoryImpl
 import io.github.reneknap.mediacenter.data.audio.PlaybackQueue
@@ -27,12 +25,20 @@ import io.github.reneknap.mediacenter.data.folder.FolderPreferencesDataSource
 import io.github.reneknap.mediacenter.data.folder.FolderPreferencesDataSourceImpl
 import io.github.reneknap.mediacenter.data.folder.FolderRepository
 import io.github.reneknap.mediacenter.data.folder.FolderRepositoryImpl
+import io.github.reneknap.mediacenter.data.media.MediaFileScanner
+import io.github.reneknap.mediacenter.data.media.MediaFileScannerImpl
+import io.github.reneknap.mediacenter.data.media.MediaScanIndex
+import io.github.reneknap.mediacenter.data.media.MediaScanIndexImpl
 import io.github.reneknap.mediacenter.data.playback.PlaybackPreferencesDataSource
 import io.github.reneknap.mediacenter.data.playback.PlaybackPreferencesDataSourceImpl
 import io.github.reneknap.mediacenter.data.review.ReviewPreferencesDataSource
 import io.github.reneknap.mediacenter.data.review.ReviewPreferencesDataSourceImpl
 import io.github.reneknap.mediacenter.data.theme.ThemePreferencesDataSource
 import io.github.reneknap.mediacenter.data.theme.ThemePreferencesDataSourceImpl
+import io.github.reneknap.mediacenter.data.video.VideoMetadataReader
+import io.github.reneknap.mediacenter.data.video.VideoMetadataReaderImpl
+import io.github.reneknap.mediacenter.data.video.VideoRepository
+import io.github.reneknap.mediacenter.data.video.VideoRepositoryImpl
 import kotlinx.serialization.json.Json
 import javax.inject.Singleton
 import kotlin.random.Random
@@ -54,7 +60,11 @@ abstract class DataModule {
 
     @Binds
     @Singleton
-    abstract fun bindAudioFileScanner(impl: AudioFileScannerImpl): AudioFileScanner
+    abstract fun bindMediaFileScanner(impl: MediaFileScannerImpl): MediaFileScanner
+
+    @Binds
+    @Singleton
+    abstract fun bindVideoMetadataReader(impl: VideoMetadataReaderImpl): VideoMetadataReader
 
     @Binds
     @Singleton
@@ -66,7 +76,15 @@ abstract class DataModule {
 
     @Binds
     @Singleton
+    abstract fun bindMediaScanIndex(impl: MediaScanIndexImpl): MediaScanIndex
+
+    @Binds
+    @Singleton
     abstract fun bindAudioRepository(impl: AudioRepositoryImpl): AudioRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindVideoRepository(impl: VideoRepositoryImpl): VideoRepository
 
     @Binds
     @Singleton

@@ -1,4 +1,4 @@
-package io.github.reneknap.mediacenter.data.audio
+package io.github.reneknap.mediacenter.data.video
 
 import io.github.reneknap.mediacenter.data.media.MediaScanIndex
 import io.github.reneknap.mediacenter.data.media.MediaScanState
@@ -8,22 +8,22 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class AudioRepositoryImpl
+class VideoRepositoryImpl
     @Inject
     constructor(
         private val mediaScanIndex: MediaScanIndex,
-    ) : AudioRepository {
-        override val folders: Flow<List<FolderTracks>> =
+    ) : VideoRepository {
+        override val folders: Flow<List<FolderVideos>> =
             mediaScanIndex.folders.map { mediaFolders ->
                 mediaFolders.map { media ->
-                    FolderTracks(media.folder, media.scan.toAudioScanState())
+                    FolderVideos(media.folder, media.scan.toVideoScanState())
                 }
             }
     }
 
-private fun MediaScanState.toAudioScanState(): FolderScanState =
+private fun MediaScanState.toVideoScanState(): VideoScanState =
     when (this) {
-        MediaScanState.Scanning -> FolderScanState.Scanning
-        MediaScanState.Unreachable -> FolderScanState.Unreachable
-        is MediaScanState.Ready -> FolderScanState.Ready(audio)
+        MediaScanState.Scanning -> VideoScanState.Scanning
+        MediaScanState.Unreachable -> VideoScanState.Unreachable
+        is MediaScanState.Ready -> VideoScanState.Ready(video)
     }
