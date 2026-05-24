@@ -59,4 +59,10 @@
     <string name="player_reset_queue">Reset queue</string>
     <string name="player_deactivated_section">Removed — tap to re-add</string>
     <string name="player_reactivate">Re-add to queue</string>
+    <string name="player_empty_folder_has_videos_message">This folder has no audio, but it does have videos — open them from the folder list.</string>
+    <string name="video_player_back">Back</string>
+    <string name="video_player_unavailable_title">Folder not available</string>
+    <string name="video_player_unavailable_message">This folder was removed or is no longer accessible.</string>
+    <string name="video_player_no_videos_title">No videos here</string>
+    <string name="video_player_no_videos_message">MediaCenter didn\'t find any playable video in this folder.</string>
 </resources>
