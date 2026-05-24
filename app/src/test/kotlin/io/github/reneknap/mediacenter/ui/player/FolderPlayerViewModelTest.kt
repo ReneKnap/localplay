@@ -10,6 +10,10 @@ import io.github.reneknap.mediacenter.data.audio.FolderScanState
 import io.github.reneknap.mediacenter.data.audio.FolderTracks
 import io.github.reneknap.mediacenter.data.audio.PlaybackQueueImpl
 import io.github.reneknap.mediacenter.data.folder.FolderEntry
+import io.github.reneknap.mediacenter.data.video.FakeVideoRepository
+import io.github.reneknap.mediacenter.data.video.FolderVideos
+import io.github.reneknap.mediacenter.data.video.VideoItem
+import io.github.reneknap.mediacenter.data.video.VideoScanState
 import io.github.reneknap.mediacenter.playback.FakePlaybackController
 import io.github.reneknap.mediacenter.playback.PlayerStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -27,6 +31,7 @@ class FolderPlayerViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private lateinit var audioRepository: FakeAudioRepository
+    private lateinit var videoRepository: FakeVideoRepository
     private lateinit var queue: PlaybackQueueImpl
     private lateinit var controller: FakePlaybackController
     private lateinit var artworkReader: FakeArtworkReader
@@ -34,6 +39,7 @@ class FolderPlayerViewModelTest {
     @Before
     fun setUp() {
         audioRepository = FakeAudioRepository()
+        videoRepository = FakeVideoRepository()
         queue = PlaybackQueueImpl(audioRepository = audioRepository)
         controller = FakePlaybackController()
         artworkReader = FakeArtworkReader()
@@ -48,12 +54,36 @@ class FolderPlayerViewModelTest {
         val handle = SavedStateHandle(args)
         return FolderPlayerViewModel(
             audioRepository = audioRepository,
+            videoRepository = videoRepository,
             queue = queue,
             controller = controller,
             artworkReader = artworkReader,
             savedStateHandle = handle,
         )
     }
+
+    private fun videoFolder(
+        folderUri: String,
+        displayName: String,
+    ): FolderVideos =
+        FolderVideos(
+            folder = FolderEntry(folderUri, displayName, isReachable = true),
+            scan =
+                VideoScanState.Ready(
+                    listOf(
+                        VideoItem(
+                            uri = "$folderUri/clip.mp4",
+                            folderUri = folderUri,
+                            displayName = "clip.mp4",
+                            mimeType = "video/mp4",
+                            sizeBytes = 0L,
+                            durationMs = 0L,
+                            width = 0,
+                            height = 0,
+                        ),
+                    ),
+                ),
+        )
 
     private fun track(
         uri: String,
@@ -185,6 +215,41 @@ class FolderPlayerViewModelTest {
                     state = awaitItem()
                 }
                 assertEquals(FolderPlayerUiState.EmptyFolder("Empty Album"), state)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `empty audio folder with videos yields EmptyFolder hasVideos true`() =
+        runTest {
+            val folderUri = "content://music/clips"
+            audioRepository.emit(listOf(readyFolder(folderUri, "Clips", emptyList())))
+            videoRepository.emit(listOf(videoFolder(folderUri, "Clips")))
+            val vm = viewModel(folderUri)
+
+            vm.uiState.test {
+                var state: FolderPlayerUiState = awaitItem()
+                while (state is FolderPlayerUiState.Loading) {
+                    state = awaitItem()
+                }
+                assertEquals(FolderPlayerUiState.EmptyFolder("Clips", hasVideos = true), state)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `empty audio folder without videos yields EmptyFolder hasVideos false`() =
+        runTest {
+            val folderUri = "content://music/empty"
+            audioRepository.emit(listOf(readyFolder(folderUri, "Empty", emptyList())))
+            val vm = viewModel(folderUri)
+
+            vm.uiState.test {
+                var state: FolderPlayerUiState = awaitItem()
+                while (state is FolderPlayerUiState.Loading) {
+                    state = awaitItem()
+                }
+                assertEquals(FolderPlayerUiState.EmptyFolder("Empty", hasVideos = false), state)
                 cancelAndIgnoreRemainingEvents()
             }
         }

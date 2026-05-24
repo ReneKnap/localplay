@@ -12,6 +12,9 @@ import io.github.reneknap.mediacenter.data.audio.FolderScanState
 import io.github.reneknap.mediacenter.data.audio.FolderTracks
 import io.github.reneknap.mediacenter.data.audio.PlaybackQueue
 import io.github.reneknap.mediacenter.data.audio.PlaybackQueueState
+import io.github.reneknap.mediacenter.data.video.FolderVideos
+import io.github.reneknap.mediacenter.data.video.VideoRepository
+import io.github.reneknap.mediacenter.data.video.VideoScanState
 import io.github.reneknap.mediacenter.playback.PlaybackController
 import io.github.reneknap.mediacenter.playback.PlayerStatus
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +32,7 @@ class FolderPlayerViewModel
     @Inject
     constructor(
         private val audioRepository: AudioRepository,
+        private val videoRepository: VideoRepository,
         private val queue: PlaybackQueue,
         private val controller: PlaybackController,
         private val artworkReader: ArtworkReader,
@@ -42,11 +46,12 @@ class FolderPlayerViewModel
         val uiState: StateFlow<FolderPlayerUiState> =
             combine(
                 audioRepository.folders,
+                videoRepository.folders,
                 queue.state,
                 controller.status,
                 selectedIndex,
-            ) { folders, queueState, status, selected ->
-                project(folders, queueState, status, selected)
+            ) { folders, videoFolders, queueState, status, selected ->
+                project(folders, videoFolders, queueState, status, selected)
             }.stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
@@ -153,6 +158,7 @@ class FolderPlayerViewModel
 
         private fun project(
             folders: List<FolderTracks>,
+            videoFolders: List<FolderVideos>,
             queueState: PlaybackQueueState,
             status: PlayerStatus,
             selected: Int?,
@@ -163,7 +169,7 @@ class FolderPlayerViewModel
                 FolderScanState.Unreachable -> FolderPlayerUiState.NotAvailable
                 is FolderScanState.Ready ->
                     if (scan.tracks.isEmpty()) {
-                        FolderPlayerUiState.EmptyFolder(target.folder.displayName)
+                        FolderPlayerUiState.EmptyFolder(target.folder.displayName, hasVideos = hasVideos(videoFolders))
                     } else {
                         val active = activeForFolder(queueState)
                         FolderPlayerUiState.Ready(
@@ -180,6 +186,11 @@ class FolderPlayerViewModel
                         )
                     }
             }
+        }
+
+        private fun hasVideos(videoFolders: List<FolderVideos>): Boolean {
+            val scan = videoFolders.firstOrNull { it.folder.uri == folderUri }?.scan
+            return scan is VideoScanState.Ready && scan.videos.isNotEmpty()
         }
 
         private fun currentIndexFor(queueState: PlaybackQueueState): Int? = activeForFolder(queueState)?.currentIndex

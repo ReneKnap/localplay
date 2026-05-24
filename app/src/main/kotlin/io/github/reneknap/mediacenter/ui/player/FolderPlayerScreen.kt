@@ -197,7 +197,7 @@ private fun FolderPlayerContent(
             when (uiState) {
                 FolderPlayerUiState.Loading -> LoadingState()
                 FolderPlayerUiState.NotAvailable -> NotAvailableState(onBack = onBack)
-                is FolderPlayerUiState.EmptyFolder -> EmptyFolderState(onBack = onBack)
+                is FolderPlayerUiState.EmptyFolder -> EmptyFolderState(hasVideos = uiState.hasVideos, onBack = onBack)
                 is FolderPlayerUiState.Ready ->
                     TrackList(
                         state = uiState,
@@ -245,11 +245,19 @@ private fun NotAvailableState(onBack: () -> Unit) {
 }
 
 @Composable
-private fun EmptyFolderState(onBack: () -> Unit) {
+private fun EmptyFolderState(
+    hasVideos: Boolean,
+    onBack: () -> Unit,
+) {
     StatusMessage(
         icon = Icons.Filled.MusicOff,
         title = stringResource(R.string.player_empty_folder_title),
-        description = stringResource(R.string.player_empty_folder_message),
+        description =
+            if (hasVideos) {
+                stringResource(R.string.player_empty_folder_has_videos_message)
+            } else {
+                stringResource(R.string.player_empty_folder_message)
+            },
         actionLabel = stringResource(R.string.status_back_to_folders),
         onAction = onBack,
     )
