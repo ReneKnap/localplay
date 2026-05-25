@@ -60,4 +60,7 @@
     <string name="player_reactivate">Re-add to queue</string>
     <string name="player_enter_fullscreen">Enter fullscreen</string>
     <string name="player_exit_fullscreen">Exit fullscreen</string>
+    <string name="player_subtitles">Subtitles</string>
+    <string name="player_subtitles_off">Off</string>
+    <string name="player_subtitles_selected">Selected</string>
 </resources>

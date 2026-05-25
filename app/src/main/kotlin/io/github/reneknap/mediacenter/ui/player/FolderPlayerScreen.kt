@@ -30,6 +30,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ClosedCaption
+import androidx.compose.material.icons.filled.ClosedCaptionOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Fullscreen
@@ -54,6 +57,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
@@ -141,6 +145,8 @@ fun FolderPlayerScreen(
         onReactivateAt = viewModel::reactivateTrackAt,
         onResetQueue = viewModel::resetQueue,
         onToggleFullscreen = viewModel::toggleFullscreen,
+        onSelectSubtitle = viewModel::selectSubtitleTrack,
+        onDisableSubtitles = viewModel::disableSubtitles,
     )
 }
 
@@ -165,6 +171,8 @@ private fun FolderPlayerContent(
     onReactivateAt: (Int, Int) -> Unit,
     onResetQueue: () -> Unit,
     onToggleFullscreen: () -> Unit,
+    onSelectSubtitle: (String) -> Unit,
+    onDisableSubtitles: () -> Unit,
 ) {
     if (uiState is FolderPlayerUiState.Ready && uiState.isFullscreen) {
         FullscreenVideo(
@@ -175,6 +183,8 @@ private fun FolderPlayerContent(
             onNext = onNext,
             onPrevious = onPrevious,
             onSeek = onSeek,
+            onSelectSubtitle = onSelectSubtitle,
+            onDisableSubtitles = onDisableSubtitles,
         )
         return
     }
@@ -216,6 +226,8 @@ private fun FolderPlayerContent(
                     onToggleShuffle = onToggleShuffle,
                     onSeek = onSeek,
                     onLoadArtwork = onLoadArtwork,
+                    onSelectSubtitle = onSelectSubtitle,
+                    onDisableSubtitles = onDisableSubtitles,
                 )
             }
         },
@@ -778,6 +790,8 @@ private fun PlayerControls(
     onToggleShuffle: () -> Unit,
     onSeek: (Long) -> Unit,
     onLoadArtwork: suspend (String) -> Bitmap?,
+    onSelectSubtitle: (String) -> Unit,
+    onDisableSubtitles: () -> Unit,
 ) {
     val displayIndex = state.selectedIndex ?: state.currentIndex
     val displayEntry = displayIndex?.let { state.entries.getOrNull(it) }
@@ -808,6 +822,8 @@ private fun PlayerControls(
                 onNext = onNext,
                 onPrevious = onPrevious,
                 onToggleShuffle = onToggleShuffle,
+                onSelectSubtitle = onSelectSubtitle,
+                onDisableSubtitles = onDisableSubtitles,
             )
         }
     }
@@ -942,6 +958,8 @@ private fun TransportRow(
     onNext: () -> Unit,
     onPrevious: () -> Unit,
     onToggleShuffle: () -> Unit,
+    onSelectSubtitle: (String) -> Unit,
+    onDisableSubtitles: () -> Unit,
 ) {
     val playEnabled = state.entries.isNotEmpty()
     val showPause = state.status.isPlaying
@@ -1010,7 +1028,65 @@ private fun TransportRow(
                 contentDescription = stringResource(R.string.player_next),
             )
         }
+        SubtitleControl(
+            state = state,
+            onSelectSubtitle = onSelectSubtitle,
+            onDisableSubtitles = onDisableSubtitles,
+        )
     }
+}
+
+/**
+ * Closed-caption control: only shown for a video with subtitle tracks. Opens a picker of "Off" plus
+ * each track; the active one is checked. Reused inline and in the fullscreen overlay.
+ */
+@Composable
+private fun SubtitleControl(
+    state: FolderPlayerUiState.Ready,
+    onSelectSubtitle: (String) -> Unit,
+    onDisableSubtitles: () -> Unit,
+    tint: Color = LocalContentColor.current,
+) {
+    if (!state.isCurrentVideo || state.subtitleTracks.isEmpty()) return
+    var expanded by remember { mutableStateOf(false) }
+    val activeId = state.activeSubtitleTrackId
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(
+                imageVector = if (activeId != null) Icons.Filled.ClosedCaption else Icons.Filled.ClosedCaptionOff,
+                contentDescription = stringResource(R.string.player_subtitles),
+                tint = tint,
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.player_subtitles_off)) },
+                onClick = {
+                    onDisableSubtitles()
+                    expanded = false
+                },
+                trailingIcon = { if (activeId == null) SelectedCheck() },
+            )
+            state.subtitleTracks.forEach { track ->
+                DropdownMenuItem(
+                    text = { Text(track.label) },
+                    onClick = {
+                        onSelectSubtitle(track.id)
+                        expanded = false
+                    },
+                    trailingIcon = { if (track.id == activeId) SelectedCheck() },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelectedCheck() {
+    Icon(
+        imageVector = Icons.Filled.Check,
+        contentDescription = stringResource(R.string.player_subtitles_selected),
+    )
 }
 
 @Composable
@@ -1065,6 +1141,8 @@ private fun FullscreenVideo(
     onNext: () -> Unit,
     onPrevious: () -> Unit,
     onSeek: (Long) -> Unit,
+    onSelectSubtitle: (String) -> Unit,
+    onDisableSubtitles: () -> Unit,
 ) {
     ImmersiveLandscapeEffect()
     Box(
@@ -1128,6 +1206,12 @@ private fun FullscreenVideo(
                         tint = Color.White,
                     )
                 }
+                SubtitleControl(
+                    state = state,
+                    onSelectSubtitle = onSelectSubtitle,
+                    onDisableSubtitles = onDisableSubtitles,
+                    tint = Color.White,
+                )
             }
         }
     }
