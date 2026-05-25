@@ -244,9 +244,9 @@ private fun FolderPlayerContent(
                 is FolderPlayerUiState.EmptyFolder -> EmptyFolderState(onBack = onBack)
                 is FolderPlayerUiState.Ready ->
                     Column(modifier = Modifier.fillMaxSize()) {
-                        if (uiState.isCurrentVideo) {
-                            InlineVideoHeader(player = player, onEnterFullscreen = onToggleFullscreen)
-                        }
+                        // The list is anchored at the top; the inline video preview sits below it so the
+                        // list does not jump as the current item alternates between audio and video — a
+                        // video just shrinks the visible list area instead of pushing it down.
                         TrackList(
                             state = uiState,
                             onTrackSelected = onTrackSelected,
@@ -258,6 +258,9 @@ private fun FolderPlayerContent(
                             onLoadThumbnail = onLoadThumbnail,
                             modifier = Modifier.weight(1f),
                         )
+                        if (uiState.isCurrentVideo) {
+                            InlineVideoPreview(player = player, onEnterFullscreen = onToggleFullscreen)
+                        }
                     }
             }
         }
@@ -1108,7 +1111,7 @@ private fun VideoSurface(
 }
 
 @Composable
-private fun InlineVideoHeader(
+private fun InlineVideoPreview(
     player: Player?,
     onEnterFullscreen: () -> Unit,
 ) {
