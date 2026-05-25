@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.Player
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.reneknap.mediacenter.data.audio.ArtworkReader
 import io.github.reneknap.mediacenter.data.audio.PlaybackQueue
@@ -12,9 +13,9 @@ import io.github.reneknap.mediacenter.data.media.FolderMediaContent
 import io.github.reneknap.mediacenter.data.media.MediaContentScanState
 import io.github.reneknap.mediacenter.data.media.MediaEntry
 import io.github.reneknap.mediacenter.data.media.MediaRepository
-import androidx.media3.common.Player
 import io.github.reneknap.mediacenter.playback.PlaybackController
 import io.github.reneknap.mediacenter.playback.PlayerStatus
+import io.github.reneknap.mediacenter.playback.SubtitleTrack
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -44,15 +45,25 @@ class FolderPlayerViewModel
         /** The session [Player] for binding the inline/fullscreen video surface (ADR-010). */
         val player: StateFlow<Player?> get() = controller.player
 
+        // Pre-combined so the main projection stays within combine's five-argument form.
+        private val playbackSnapshot =
+            combine(
+                controller.status,
+                controller.textTracks,
+                controller.activeTextTrackId,
+            ) { status, tracks, activeId ->
+                PlaybackSnapshot(status, tracks, activeId)
+            }
+
         val uiState: StateFlow<FolderPlayerUiState> =
             combine(
                 mediaRepository.folders,
                 queue.state,
-                controller.status,
+                playbackSnapshot,
                 selectedIndex,
                 fullscreen,
-            ) { folders, queueState, status, selected, isFullscreen ->
-                project(folders, queueState, status, selected, isFullscreen)
+            ) { folders, queueState, snapshot, selected, isFullscreen ->
+                project(folders, queueState, snapshot, selected, isFullscreen)
             }.stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
@@ -157,6 +168,14 @@ class FolderPlayerViewModel
             controller.resetQueue()
         }
 
+        fun selectSubtitleTrack(id: String) {
+            controller.selectTextTrack(id)
+        }
+
+        fun disableSubtitles() {
+            controller.disableSubtitles()
+        }
+
         fun toggleFullscreen() {
             val current = (queue.state.value as? PlaybackQueueState.Active)?.let { it.entries[it.currentIndex] }
             if (current is MediaEntry.Video) {
@@ -177,7 +196,7 @@ class FolderPlayerViewModel
         private fun project(
             folders: List<FolderMediaContent>,
             queueState: PlaybackQueueState,
-            status: PlayerStatus,
+            snapshot: PlaybackSnapshot,
             selected: Int?,
             isFullscreen: Boolean,
         ): FolderPlayerUiState {
@@ -199,16 +218,25 @@ class FolderPlayerViewModel
                             deactivatedOrder = active?.deactivated ?: emptyList(),
                             currentIndex = active?.currentIndex,
                             selectedIndex = selected,
-                            status = status,
-                            shuffleEnabled = status.shuffleEnabled,
+                            status = snapshot.status,
+                            shuffleEnabled = snapshot.status.shuffleEnabled,
                             hasNext = active?.hasNext ?: false,
                             hasPrevious = active?.hasPrevious ?: false,
                             isCurrentVideo = isCurrentVideo,
                             isFullscreen = isFullscreen && isCurrentVideo,
+                            // Subtitles are a video-only concern; hide tracks while audio is current.
+                            subtitleTracks = if (isCurrentVideo) snapshot.subtitleTracks else emptyList(),
+                            activeSubtitleTrackId = if (isCurrentVideo) snapshot.activeSubtitleTrackId else null,
                         )
                     }
             }
         }
+
+        private data class PlaybackSnapshot(
+            val status: PlayerStatus,
+            val subtitleTracks: List<SubtitleTrack>,
+            val activeSubtitleTrackId: String?,
+        )
 
         private fun currentIndexFor(queueState: PlaybackQueueState): Int? = activeForFolder(queueState)?.currentIndex
 

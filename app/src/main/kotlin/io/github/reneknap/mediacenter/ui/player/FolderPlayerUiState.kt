@@ -2,6 +2,7 @@ package io.github.reneknap.mediacenter.ui.player
 
 import io.github.reneknap.mediacenter.data.media.MediaEntry
 import io.github.reneknap.mediacenter.playback.PlayerStatus
+import io.github.reneknap.mediacenter.playback.SubtitleTrack
 
 sealed interface FolderPlayerUiState {
     data object Loading : FolderPlayerUiState
@@ -23,5 +24,7 @@ sealed interface FolderPlayerUiState {
         val hasPrevious: Boolean = false,
         val isCurrentVideo: Boolean = false,
         val isFullscreen: Boolean = false,
+        val subtitleTracks: List<SubtitleTrack> = emptyList(),
+        val activeSubtitleTrackId: String? = null,
     ) : FolderPlayerUiState
 }

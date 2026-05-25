@@ -9,6 +9,12 @@ interface PlaybackController {
     /** The underlying Media3 [Player] for binding a video surface; null until the session connects. */
     val player: StateFlow<Player?>
 
+    /** Selectable subtitle tracks of the current item; empty for none. */
+    val textTracks: StateFlow<List<SubtitleTrack>>
+
+    /** The currently shown subtitle track id, or null when subtitles are off (the default). */
+    val activeTextTrackId: StateFlow<String?>
+
     suspend fun prepareFolder(folderUri: String)
 
     fun playAtIndex(index: Int)
@@ -40,4 +46,10 @@ interface PlaybackController {
     )
 
     fun resetQueue()
+
+    /** Show the subtitle track with [id] (from [textTracks]). */
+    fun selectTextTrack(id: String)
+
+    /** Turn subtitles off. */
+    fun disableSubtitles()
 }

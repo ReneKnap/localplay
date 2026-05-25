@@ -11,6 +11,16 @@ class FakePlaybackController : PlaybackController {
 
     override val player: StateFlow<Player?> = MutableStateFlow<Player?>(null).asStateFlow()
 
+    private val _textTracks = MutableStateFlow<List<SubtitleTrack>>(emptyList())
+    override val textTracks: StateFlow<List<SubtitleTrack>> = _textTracks.asStateFlow()
+
+    private val _activeTextTrackId = MutableStateFlow<String?>(null)
+    override val activeTextTrackId: StateFlow<String?> = _activeTextTrackId.asStateFlow()
+
+    val selectedTextTrackIds: MutableList<String> = mutableListOf()
+    var disableSubtitlesCount: Int = 0
+        private set
+
     val preparedFolders: MutableList<String> = mutableListOf()
     val playedIndexes: MutableList<Int> = mutableListOf()
     val seekedPositions: MutableList<Long> = mutableListOf()
@@ -87,7 +97,23 @@ class FakePlaybackController : PlaybackController {
         resetQueueCount += 1
     }
 
+    override fun selectTextTrack(id: String) {
+        selectedTextTrackIds.add(id)
+    }
+
+    override fun disableSubtitles() {
+        disableSubtitlesCount += 1
+    }
+
     fun emitStatus(status: PlayerStatus) {
         _status.value = status
+    }
+
+    fun emitTextTracks(tracks: List<SubtitleTrack>) {
+        _textTracks.value = tracks
+    }
+
+    fun emitActiveTextTrackId(id: String?) {
+        _activeTextTrackId.value = id
     }
 }

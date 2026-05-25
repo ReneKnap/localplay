@@ -15,6 +15,7 @@ import io.github.reneknap.mediacenter.data.media.MediaEntry
 import io.github.reneknap.mediacenter.data.video.VideoItem
 import io.github.reneknap.mediacenter.playback.FakePlaybackController
 import io.github.reneknap.mediacenter.playback.PlayerStatus
+import io.github.reneknap.mediacenter.playback.SubtitleTrack
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -712,5 +713,96 @@ class FolderPlayerViewModelTest {
                 assertEquals(2, state.selectedIndex)
                 cancelAndIgnoreRemainingEvents()
             }
+        }
+
+    // ---------------------------------------------------------------------
+    // Subtitles
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `Ready surfaces subtitle tracks when the current entry is video`() =
+        runTest {
+            val folderUri = "content://media/a"
+            val entries = listOf(video("$folderUri/1"))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "Clip", entries)))
+            queue.setQueue(folderUri) // current = video
+            val tracks = listOf(SubtitleTrack("g0t0", "German", "de"))
+            controller.emitTextTracks(tracks)
+            val vm = viewModel(folderUri)
+
+            vm.uiState.test {
+                var state: FolderPlayerUiState = awaitItem()
+                while (state !is FolderPlayerUiState.Ready || state.subtitleTracks.isEmpty()) {
+                    state = awaitItem()
+                }
+                assertEquals(tracks, state.subtitleTracks)
+                assertNull(state.activeSubtitleTrackId) // strictly off by default
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `Ready hides subtitle tracks when the current entry is audio`() =
+        runTest {
+            val folderUri = "content://media/a"
+            val entries = listOf(audio("$folderUri/1"), video("$folderUri/2"))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "Mixed", entries)))
+            queue.setQueue(folderUri) // current = audio
+            controller.emitTextTracks(listOf(SubtitleTrack("g0t0", "German", "de")))
+            val vm = viewModel(folderUri)
+
+            vm.uiState.test {
+                var state: FolderPlayerUiState = awaitItem()
+                while (state !is FolderPlayerUiState.Ready) {
+                    state = awaitItem()
+                }
+                assertTrue(state.subtitleTracks.isEmpty())
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `Ready surfaces the active subtitle track id for a video`() =
+        runTest {
+            val folderUri = "content://media/a"
+            val entries = listOf(video("$folderUri/1"))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "Clip", entries)))
+            queue.setQueue(folderUri) // current = video
+            controller.emitTextTracks(listOf(SubtitleTrack("g0t0", "German", "de")))
+            controller.emitActiveTextTrackId("g0t0")
+            val vm = viewModel(folderUri)
+
+            vm.uiState.test {
+                var state: FolderPlayerUiState = awaitItem()
+                while (state !is FolderPlayerUiState.Ready || state.activeSubtitleTrackId == null) {
+                    state = awaitItem()
+                }
+                assertEquals("g0t0", state.activeSubtitleTrackId)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `selectSubtitleTrack delegates to controller`() =
+        runTest {
+            val folderUri = "content://media/a"
+            mediaRepository.emit(listOf(readyFolder(folderUri, "Clip", listOf(video("$folderUri/1")))))
+            val vm = viewModel(folderUri)
+
+            vm.selectSubtitleTrack("g0t0")
+
+            assertEquals(listOf("g0t0"), controller.selectedTextTrackIds)
+        }
+
+    @Test
+    fun `disableSubtitles delegates to controller`() =
+        runTest {
+            val folderUri = "content://media/a"
+            mediaRepository.emit(listOf(readyFolder(folderUri, "Clip", listOf(video("$folderUri/1")))))
+            val vm = viewModel(folderUri)
+
+            vm.disableSubtitles()
+
+            assertEquals(1, controller.disableSubtitlesCount)
         }
 }

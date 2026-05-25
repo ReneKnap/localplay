@@ -17,6 +17,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -683,5 +684,51 @@ class PlaybackControllerImplTest {
             c.moveTrack(0, 99)
 
             assertEquals(before, engine.structuralHistory.size)
+        }
+
+    // ---------------------------------------------------------------------
+    // Subtitles — pass-through to engine
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `textTracks reflects the engine text tracks`() =
+        runTest {
+            val c = controller(this)
+            val tracks = listOf(SubtitleTrack("g0t0", "German", "de"))
+
+            engine.emitTextTracks(tracks)
+
+            assertEquals(tracks, c.textTracks.value)
+        }
+
+    @Test
+    fun `activeTextTrackId reflects the engine and defaults to null`() =
+        runTest {
+            val c = controller(this)
+            assertNull(c.activeTextTrackId.value)
+
+            engine.selectTextTrack("g0t1")
+
+            assertEquals("g0t1", c.activeTextTrackId.value)
+        }
+
+    @Test
+    fun `selectTextTrack delegates to the engine`() =
+        runTest {
+            val c = controller(this)
+
+            c.selectTextTrack("g0t1")
+
+            assertEquals(listOf("g0t1"), engine.selectedTextTrackIds)
+        }
+
+    @Test
+    fun `disableSubtitles delegates to the engine`() =
+        runTest {
+            val c = controller(this)
+
+            c.disableSubtitles()
+
+            assertEquals(1, engine.disableSubtitlesCount)
         }
 }

@@ -40,6 +40,10 @@ class PlaybackControllerImpl
 
         override val player = engine.player
 
+        override val textTracks = engine.textTracks
+
+        override val activeTextTrackId = engine.activeTextTrackId
+
         init {
             scope.launch {
                 engine.currentMediaItemIndex.collect { playerPos ->
@@ -157,6 +161,14 @@ class PlaybackControllerImpl
             val insertedPosition =
                 (queue.state.value as? PlaybackQueueState.Active)?.playbackOrder?.indexOf(trackIndex) ?: return
             engine.addMediaItem(insertedPosition, state.entries[trackIndex])
+        }
+
+        override fun selectTextTrack(id: String) {
+            engine.selectTextTrack(id)
+        }
+
+        override fun disableSubtitles() {
+            engine.disableSubtitles()
         }
 
         override fun resetQueue() {
