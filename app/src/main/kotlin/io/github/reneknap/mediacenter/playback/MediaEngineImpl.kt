@@ -14,6 +14,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import dagger.hilt.android.qualifiers.ApplicationContext
+import io.github.reneknap.mediacenter.data.audio.ArtworkReader
 import io.github.reneknap.mediacenter.data.media.MediaEntry
 import io.github.reneknap.mediacenter.data.video.ExternalSubtitle
 import io.github.reneknap.mediacenter.di.ApplicationScope
@@ -34,6 +35,7 @@ class MediaEngineImpl
     constructor(
         @ApplicationContext private val context: Context,
         @ApplicationScope appScope: CoroutineScope,
+        private val artworkReader: ArtworkReader,
     ) : MediaEngine {
         private val scope = CoroutineScope(appScope.coroutineContext + Dispatchers.Main.immediate)
 
@@ -92,6 +94,7 @@ class MediaEngineImpl
                     val active = controller ?: return
                     _currentMediaItemIndex.value = active.currentMediaItemIndex
                     _positionMs.value = 0L
+                    refreshPosterForCurrentItem()
                 }
 
                 override fun onPlayWhenReadyChanged(
@@ -233,6 +236,42 @@ class MediaEngineImpl
             _activeTextTrackId.value = active
         }
 
+        // Video files carry no embedded cover, so the system media controls would show only a generic
+        // placeholder. Extract a representative frame off-thread and hand it to them as artworkData
+        // bytes (never artworkUri: the SAF content uri is not readable by SystemUI). Gated on the video
+        // mediaType so audio never reaches the extractor and keeps its own embedded cover untouched.
+        private fun refreshPosterForCurrentItem() {
+            val active = controller ?: return
+            val item = active.currentMediaItem ?: return
+            if (item.mediaMetadata.mediaType != MediaMetadata.MEDIA_TYPE_VIDEO) return
+            if (item.mediaMetadata.artworkData != null) return
+            val uri = item.mediaId
+            val index = active.currentMediaItemIndex
+            scope.launch {
+                val bytes = artworkReader.loadVideoFrameBytes(uri) ?: return@launch
+                applyPoster(index, uri, bytes)
+            }
+        }
+
+        private fun applyPoster(
+            index: Int,
+            uri: String,
+            bytes: ByteArray,
+        ) {
+            val active = controller ?: return
+            if (index !in 0..<active.mediaItemCount) return
+            val item = active.getMediaItemAt(index)
+            // The user may have skipped or reordered while the frame decoded; only update when the same
+            // item is still there and still has no poster (prevents overwriting and a replace loop).
+            if (item.mediaId != uri || item.mediaMetadata.artworkData != null) return
+            val metadata =
+                item.mediaMetadata
+                    .buildUpon()
+                    .setArtworkData(bytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+                    .build()
+            active.replaceMediaItem(index, item.buildUpon().setMediaMetadata(metadata).build())
+        }
+
         private fun connectController() {
             val token = SessionToken(context, ComponentName(context, MediaCenterPlaybackService::class.java))
             val future = MediaController.Builder(context, token).buildAsync()
@@ -253,6 +292,7 @@ class MediaEngineImpl
                 mapTextTracks(connected.currentTracks)
                 pendingCommands.forEach { it(connected) }
                 pendingCommands.clear()
+                refreshPosterForCurrentItem()
             }, ContextCompat.getMainExecutor(context))
         }
 
@@ -289,13 +329,14 @@ private fun MediaEntry.toMediaItem(): MediaItem {
                     .setTitle(track.title)
                     .setArtist(track.artist)
                     .setAlbumTitle(track.album)
+                    .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
                     .build()
             is MediaEntry.Video ->
-                // No artworkUri: the SAF content uri is only readable by this app, so handing it to the
-                // system media controls (SystemUI) crashes them with a SecurityException. In-app rows/cover
-                // still show a frame via ArtworkReader; a notification poster would need artworkData bytes.
+                // No artworkData here: it is filled in asynchronously by refreshPosterForCurrentItem once
+                // a frame is decoded. Never artworkUri — the SAF content uri is not readable by SystemUI.
                 MediaMetadata.Builder()
                     .setTitle(video.displayName)
+                    .setMediaType(MediaMetadata.MEDIA_TYPE_VIDEO)
                     .build()
         }
     val builder =
