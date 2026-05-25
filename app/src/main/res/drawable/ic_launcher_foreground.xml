@@ -8,7 +8,7 @@
     <!-- Note heads -->
     <path
         android:fillColor="#E0701A"
-        android:pathData="M26,72 a5,5 0 1 1 10,0 a5,5 0 1 1 -10,0 Z M45,72 a5,5 0 1 1 10,0 a5,5 0 1 1 -10,0 Z M64,72 a5,5 0 1 1 10,0 a5,5 0 1 1 -10,0 Z" />
+        android:pathData="M27,72 a5,5 0 1 1 10,0 a5,5 0 1 1 -10,0 Z M46,72 a5,5 0 1 1 10,0 a5,5 0 1 1 -10,0 Z M65,72 a5,5 0 1 1 10,0 a5,5 0 1 1 -10,0 Z" />
     <!-- Note stems -->
     <path
         android:fillColor="#E0701A"
