@@ -13,6 +13,11 @@ build/
 .gradle/
 local.properties
 
+# Release signing — never commit the keystore or its passwords
+keystore.properties
+*.jks
+*.keystore
+
 # Kotlin 2.x incremental compilation cache
 .kotlin/
 
