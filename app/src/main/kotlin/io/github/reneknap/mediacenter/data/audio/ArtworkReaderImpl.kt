@@ -9,6 +9,7 @@ import androidx.core.net.toUri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.util.Collections
 import javax.inject.Inject
 
@@ -21,6 +22,10 @@ class ArtworkReaderImpl
         // "uri@size" so the transport-bar cover and the smaller row thumbnails coexist per track.
         private val cache = LruCache<String, Bitmap>(MAX_CACHED_COVERS)
         private val withoutArtwork = Collections.synchronizedSet(mutableSetOf<String>())
+
+        // Compressed poster bytes for the system media controls, separate from the bitmap cache above.
+        private val frameBytesCache = LruCache<String, ByteArray>(MAX_CACHED_POSTERS)
+        private val withoutFrame = Collections.synchronizedSet(mutableSetOf<String>())
 
         override suspend fun loadArtwork(
             uri: String,
@@ -40,6 +45,32 @@ class ArtworkReaderImpl
                     cache.put(cacheKey, bitmap)
                 }
                 bitmap
+            }
+        }
+
+        override suspend fun loadVideoFrameBytes(
+            uri: String,
+            targetSizePx: Int,
+        ): ByteArray? {
+            val cacheKey = "$uri@$targetSizePx"
+            frameBytesCache.get(cacheKey)?.let { return it }
+            if (uri in withoutFrame) return null
+            return withContext(Dispatchers.IO) {
+                // Frame-only on purpose: audio (and frameless sources) yield null, so callers never
+                // overwrite an audio track's embedded cover with this path.
+                val frame = readVideoFrame(uri, targetSizePx)
+                if (frame == null) {
+                    withoutFrame.add(uri)
+                    return@withContext null
+                }
+                val bytes =
+                    ByteArrayOutputStream().use { stream ->
+                        frame.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, stream)
+                        stream.toByteArray()
+                    }
+                frame.recycle()
+                frameBytesCache.put(cacheKey, bytes)
+                bytes
             }
         }
 
@@ -119,5 +150,9 @@ class ArtworkReaderImpl
         private companion object {
             // Holds covers at multiple sizes per track (transport bar + row thumbnails).
             const val MAX_CACHED_COVERS = 64
+
+            // Posters are larger (512px JPEG) and only the current/neighbouring items need one.
+            const val MAX_CACHED_POSTERS = 16
+            const val JPEG_QUALITY = 90
         }
     }
