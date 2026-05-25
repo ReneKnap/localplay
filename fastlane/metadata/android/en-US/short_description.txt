@@ -1,1 +1,1 @@
-A clean, ad-free player for your local music and video files.
+An open, ad-free player for your local music and video files.

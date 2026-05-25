@@ -1,6 +1,6 @@
-MediaCenter plays the music and video files already on your device — no ads, no costs, no sign-up, and no distractions.
+Localplay plays the music and video files already on your device — no ads, no costs, no sign-up, and no distractions.
 
-Pick a folder and MediaCenter lists what's inside. Tap to play. Music keeps playing in the background with play, pause, next, and previous controls right in your notification and on the lockscreen. Videos play full screen and continue as audio when you leave the app.
+Pick a folder and Localplay lists what's inside. Tap to play. Music keeps playing in the background with play, pause, next, and previous controls right in your notification and on the lockscreen. Videos play full screen and continue as audio when you leave the app.
 
 FEATURES
 • Play local audio and video from any folder you choose
@@ -18,4 +18,4 @@ NO NONSENSE
 • No internet permission — playback is fully local
 • Free and open source
 
-MediaCenter does one thing well: it plays the media you already have, simply and beautifully. If you would like to support development, there is an optional donation link in the settings — never a pop-up and never required.
+Localplay does one thing well: it plays the media you already have, simply and beautifully. If you would like to support development, there is an optional donation link in the settings — never a pop-up and never required.

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">MediaCenter</string>
+    <string name="app_name">Localplay</string>
 
     <string name="home_empty_title">Pick a folder to get started</string>
-    <string name="home_empty_explanation">MediaCenter scans the folders you choose and plays the music inside.</string>
+    <string name="home_empty_explanation">Localplay scans the folders you choose and plays the music inside.</string>
     <string name="home_pick_folder_button">Pick a folder</string>
     <string name="home_add_folder">Add folder</string>
     <string name="home_remove_folder">Remove folder</string>
@@ -14,8 +14,8 @@
 
     <string name="support_menu_item">Support development</string>
     <string name="support_rate">Rate the app</string>
-    <string name="support_dialog_title">Support MediaCenter</string>
-    <string name="support_dialog_body">MediaCenter is free and won\'t bombard you with ads or pop-ups. If you\'d like to support its development, leaving a rating or a small donation goes a long way.</string>
+    <string name="support_dialog_title">Support Localplay</string>
+    <string name="support_dialog_body">Localplay is free and won\'t bombard you with ads or pop-ups. If you\'d like to support its development, leaving a rating or a small donation goes a long way.</string>
     <string name="support_coffee">Buy me a coffee</string>
     <string name="support_paypal">Donate via PayPal</string>
     <string name="support_dialog_close">Close</string>
@@ -41,7 +41,7 @@
     <string name="player_folder_unavailable">Folder not available</string>
     <string name="player_folder_unavailable_message">This folder was removed or is no longer accessible.</string>
     <string name="player_empty_folder_title">No audio files here</string>
-    <string name="player_empty_folder_message">MediaCenter didn\'t find any playable audio in this folder.</string>
+    <string name="player_empty_folder_message">Localplay didn\'t find any playable audio in this folder.</string>
     <string name="status_back_to_folders">Back to folders</string>
     <string name="player_no_track_hint">Tap a track and press play, or press play to start with the first track</string>
     <string name="player_now_playing_content_description">Now playing</string>

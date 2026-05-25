@@ -23,5 +23,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "MediaCenter"
+rootProject.name = "Localplay"
 include(":app")
