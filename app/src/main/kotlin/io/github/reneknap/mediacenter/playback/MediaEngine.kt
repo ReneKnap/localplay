@@ -1,9 +1,13 @@
 package io.github.reneknap.mediacenter.playback
 
-import io.github.reneknap.mediacenter.data.audio.AudioTrack
+import androidx.media3.common.Player
+import io.github.reneknap.mediacenter.data.media.MediaEntry
 import kotlinx.coroutines.flow.StateFlow
 
 interface MediaEngine {
+    /** The underlying Media3 [Player] for binding a video surface (`PlayerView`); null until connected. */
+    val player: StateFlow<Player?>
+
     val isPlaying: StateFlow<Boolean>
 
     val positionMs: StateFlow<Long>
@@ -15,7 +19,7 @@ interface MediaEngine {
     val playWhenReady: StateFlow<Boolean>
 
     fun setQueue(
-        items: List<AudioTrack>,
+        items: List<MediaEntry>,
         startIndex: Int,
         playWhenReady: Boolean,
         startPositionMs: Long?,
@@ -36,7 +40,7 @@ interface MediaEngine {
 
     fun addMediaItem(
         index: Int,
-        item: AudioTrack,
+        item: MediaEntry,
     )
 
     fun seekTo(positionMs: Long)

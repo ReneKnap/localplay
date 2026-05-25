@@ -1,9 +1,13 @@
 package io.github.reneknap.mediacenter.playback
 
+import androidx.media3.common.Player
 import kotlinx.coroutines.flow.StateFlow
 
 interface PlaybackController {
     val status: StateFlow<PlayerStatus>
+
+    /** The underlying Media3 [Player] for binding a video surface; null until the session connects. */
+    val player: StateFlow<Player?>
 
     suspend fun prepareFolder(folderUri: String)
 

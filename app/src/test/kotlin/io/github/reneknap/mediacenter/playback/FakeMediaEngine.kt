@@ -1,11 +1,15 @@
 package io.github.reneknap.mediacenter.playback
 
-import io.github.reneknap.mediacenter.data.audio.AudioTrack
+import androidx.media3.common.Player
+import io.github.reneknap.mediacenter.data.media.MediaEntry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class FakeMediaEngine : MediaEngine {
+    private val _player = MutableStateFlow<Player?>(null)
+    override val player: StateFlow<Player?> = _player.asStateFlow()
+
     private val _isPlaying = MutableStateFlow(false)
     override val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
@@ -21,11 +25,11 @@ class FakeMediaEngine : MediaEngine {
     private val _playWhenReady = MutableStateFlow(false)
     override val playWhenReady: StateFlow<Boolean> = _playWhenReady.asStateFlow()
 
-    var items: List<AudioTrack> = emptyList()
+    var items: List<MediaEntry> = emptyList()
         private set
 
     data class SetQueueCall(
-        val items: List<AudioTrack>,
+        val items: List<MediaEntry>,
         val startIndex: Int,
         val playWhenReady: Boolean,
         val startPositionMs: Long?,
@@ -46,7 +50,7 @@ class FakeMediaEngine : MediaEngine {
 
         data class Remove(val index: Int) : Structural
 
-        data class Add(val index: Int, val item: AudioTrack) : Structural
+        data class Add(val index: Int, val item: MediaEntry) : Structural
     }
 
     val setQueueHistory: MutableList<SetQueueCall> = mutableListOf()
@@ -54,7 +58,7 @@ class FakeMediaEngine : MediaEngine {
     val structuralHistory: MutableList<Structural> = mutableListOf()
 
     override fun setQueue(
-        items: List<AudioTrack>,
+        items: List<MediaEntry>,
         startIndex: Int,
         playWhenReady: Boolean,
         startPositionMs: Long?,
@@ -123,7 +127,7 @@ class FakeMediaEngine : MediaEngine {
 
     override fun addMediaItem(
         index: Int,
-        item: AudioTrack,
+        item: MediaEntry,
     ) {
         structuralHistory.add(Structural.Add(index, item))
         val current = items.getOrNull(_currentMediaItemIndex.value)

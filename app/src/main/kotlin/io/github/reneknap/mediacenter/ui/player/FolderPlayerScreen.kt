@@ -1,5 +1,7 @@
 package io.github.reneknap.mediacenter.ui.player
 
+import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,7 +32,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.MusicOff
 import androidx.compose.material.icons.filled.Pause
@@ -59,6 +65,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -77,15 +84,23 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.common.Player
+import androidx.media3.ui.PlayerView
 import io.github.reneknap.mediacenter.R
-import io.github.reneknap.mediacenter.data.audio.AudioTrack
+import io.github.reneknap.mediacenter.data.media.MediaEntry
+import io.github.reneknap.mediacenter.data.media.MediaKind
 import io.github.reneknap.mediacenter.ui.components.StatusMessage
 import java.util.Locale
 
@@ -95,8 +110,10 @@ fun FolderPlayerScreen(
     viewModel: FolderPlayerViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val player by viewModel.player.collectAsStateWithLifecycle()
     FolderPlayerContent(
         uiState = uiState,
+        player = player,
         onBack = onBack,
         onTrackSelected = viewModel::selectTrack,
         onPlayOrToggle = {
@@ -123,6 +140,7 @@ fun FolderPlayerScreen(
         onReactivateTrack = viewModel::reactivateTrack,
         onReactivateAt = viewModel::reactivateTrackAt,
         onResetQueue = viewModel::resetQueue,
+        onToggleFullscreen = viewModel::toggleFullscreen,
     )
 }
 
@@ -130,6 +148,7 @@ fun FolderPlayerScreen(
 @Composable
 private fun FolderPlayerContent(
     uiState: FolderPlayerUiState,
+    player: Player?,
     onBack: () -> Unit,
     onTrackSelected: (Int) -> Unit,
     onPlayOrToggle: () -> Unit,
@@ -145,7 +164,20 @@ private fun FolderPlayerContent(
     onReactivateTrack: (Int) -> Unit,
     onReactivateAt: (Int, Int) -> Unit,
     onResetQueue: () -> Unit,
+    onToggleFullscreen: () -> Unit,
 ) {
+    if (uiState is FolderPlayerUiState.Ready && uiState.isFullscreen) {
+        FullscreenVideo(
+            player = player,
+            state = uiState,
+            onExitFullscreen = onToggleFullscreen,
+            onPlayOrToggle = onPlayOrToggle,
+            onNext = onNext,
+            onPrevious = onPrevious,
+            onSeek = onSeek,
+        )
+        return
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -197,18 +229,24 @@ private fun FolderPlayerContent(
             when (uiState) {
                 FolderPlayerUiState.Loading -> LoadingState()
                 FolderPlayerUiState.NotAvailable -> NotAvailableState(onBack = onBack)
-                is FolderPlayerUiState.EmptyFolder -> EmptyFolderState(hasVideos = uiState.hasVideos, onBack = onBack)
+                is FolderPlayerUiState.EmptyFolder -> EmptyFolderState(onBack = onBack)
                 is FolderPlayerUiState.Ready ->
-                    TrackList(
-                        state = uiState,
-                        onTrackSelected = onTrackSelected,
-                        onMoveTrack = onMoveTrack,
-                        onPlayNext = onPlayNext,
-                        onDeactivateTrack = onDeactivateTrack,
-                        onReactivateTrack = onReactivateTrack,
-                        onReactivateAt = onReactivateAt,
-                        onLoadThumbnail = onLoadThumbnail,
-                    )
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        if (uiState.isCurrentVideo) {
+                            InlineVideoHeader(player = player, onEnterFullscreen = onToggleFullscreen)
+                        }
+                        TrackList(
+                            state = uiState,
+                            onTrackSelected = onTrackSelected,
+                            onMoveTrack = onMoveTrack,
+                            onPlayNext = onPlayNext,
+                            onDeactivateTrack = onDeactivateTrack,
+                            onReactivateTrack = onReactivateTrack,
+                            onReactivateAt = onReactivateAt,
+                            onLoadThumbnail = onLoadThumbnail,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
             }
         }
     }
@@ -245,19 +283,11 @@ private fun NotAvailableState(onBack: () -> Unit) {
 }
 
 @Composable
-private fun EmptyFolderState(
-    hasVideos: Boolean,
-    onBack: () -> Unit,
-) {
+private fun EmptyFolderState(onBack: () -> Unit) {
     StatusMessage(
         icon = Icons.Filled.MusicOff,
         title = stringResource(R.string.player_empty_folder_title),
-        description =
-            if (hasVideos) {
-                stringResource(R.string.player_empty_folder_has_videos_message)
-            } else {
-                stringResource(R.string.player_empty_folder_message)
-            },
+        description = stringResource(R.string.player_empty_folder_message),
         actionLabel = stringResource(R.string.status_back_to_folders),
         onAction = onBack,
     )
@@ -274,6 +304,7 @@ private fun TrackList(
     onReactivateTrack: (Int) -> Unit,
     onReactivateAt: (Int, Int) -> Unit,
     onLoadThumbnail: suspend (String) -> Bitmap?,
+    modifier: Modifier = Modifier,
 ) {
     val highlightIndex = state.selectedIndex ?: state.currentIndex
     val activeCount = state.displayOrder.size
@@ -286,12 +317,12 @@ private fun TrackList(
             DragDropState(
                 listState = listState,
                 onMove = { from, to -> latestOnMove(from, to) },
-                onReactivateAt = { trackIndex, position -> latestOnReactivateAt(trackIndex, position) },
+                onReactivateAt = { entryIndex, position -> latestOnReactivateAt(entryIndex, position) },
             )
         }
     dragDropState.activeCount = activeCount
 
-    // Scroll to the current track only when it actually changes (auto-advance, play, prev/next) — not on
+    // Scroll to the current entry only when it actually changes (auto-advance, play, prev/next) — not on
     // every reorder/deactivate/reactivate, which would yank the list away from what the user is editing.
     LaunchedEffect(state.currentIndex) {
         if (dragDropState.draggingItemIndex != null) return@LaunchedEffect
@@ -300,12 +331,12 @@ private fun TrackList(
         listState.animateScrollToItem(position)
     }
 
-    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+    LazyColumn(state = listState, modifier = modifier.fillMaxWidth()) {
         itemsIndexed(
             items = state.displayOrder,
-            key = { _, trackIndex -> state.tracks[trackIndex].uri },
-        ) { displayPosition, trackIndex ->
-            val track = state.tracks[trackIndex]
+            key = { _, entryIndex -> state.entries[entryIndex].uri },
+        ) { displayPosition, entryIndex ->
+            val entry = state.entries[entryIndex]
             val isDragging = displayPosition == dragDropState.draggingItemIndex
             val currentPosition by rememberUpdatedState(displayPosition)
             val dismissState =
@@ -345,10 +376,10 @@ private fun TrackList(
                 backgroundContent = { SwipeRemoveBackground(dismissState.dismissDirection) },
             ) {
                 TrackRow(
-                    track = track,
-                    isSelected = state.selectedIndex == trackIndex,
-                    isHighlighted = highlightIndex == trackIndex,
-                    onClick = { onTrackSelected(trackIndex) },
+                    entry = entry,
+                    isSelected = state.selectedIndex == entryIndex,
+                    isHighlighted = highlightIndex == entryIndex,
+                    onClick = { onTrackSelected(entryIndex) },
                     onPlayNext = { onPlayNext(currentPosition) },
                     onRemove = { if (canDeactivate) onDeactivateTrack(currentPosition) },
                     onLoadThumbnail = onLoadThumbnail,
@@ -358,8 +389,8 @@ private fun TrackList(
         }
         itemsIndexed(
             items = state.deactivatedOrder,
-            key = { _, trackIndex -> state.tracks[trackIndex].uri },
-        ) { deactivatedPosition, trackIndex ->
+            key = { _, entryIndex -> state.entries[entryIndex].uri },
+        ) { deactivatedPosition, entryIndex ->
             val lazyIndex = activeCount + deactivatedPosition
             val isDragging = lazyIndex == dragDropState.draggingItemIndex
             val currentLazyIndex by rememberUpdatedState(lazyIndex)
@@ -374,7 +405,7 @@ private fun TrackList(
             val dragHandleModifier =
                 Modifier.pointerInput(dragDropState) {
                     detectDragGestures(
-                        onDragStart = { dragDropState.onDeactivatedDragStart(currentLazyIndex, trackIndex) },
+                        onDragStart = { dragDropState.onDeactivatedDragStart(currentLazyIndex, entryIndex) },
                         onDrag = { change, dragAmount ->
                             change.consume()
                             dragDropState.onDrag(dragAmount.y)
@@ -384,9 +415,9 @@ private fun TrackList(
                     )
                 }
             DeactivatedRow(
-                track = state.tracks[trackIndex],
+                entry = state.entries[entryIndex],
                 showHeader = deactivatedPosition == 0,
-                onReactivate = { onReactivateTrack(trackIndex) },
+                onReactivate = { onReactivateTrack(entryIndex) },
                 onLoadThumbnail = onLoadThumbnail,
                 dragHandleModifier = dragHandleModifier,
                 modifier = itemModifier,
@@ -398,7 +429,7 @@ private fun TrackList(
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun TrackRow(
-    track: AudioTrack,
+    entry: MediaEntry,
     isSelected: Boolean,
     isHighlighted: Boolean,
     onClick: () -> Unit,
@@ -429,20 +460,20 @@ private fun TrackRow(
                     .combinedClickable(onClick = onClick, onLongClick = { menuExpanded = true }),
             colors = ListItemDefaults.colors(containerColor = rowBackground),
             leadingContent = {
-                TrackThumbnail(
-                    trackUri = track.uri,
+                EntryThumbnail(
+                    entry = entry,
                     isHighlighted = isHighlighted,
                     onLoadThumbnail = onLoadThumbnail,
                 )
             },
             headlineContent = {
                 Text(
-                    text = track.title,
+                    text = entryTitle(entry),
                     color = titleColor,
                     style = MaterialTheme.typography.bodyLarge,
                 )
             },
-            supportingContent = { TrackSubtitle(track) },
+            supportingContent = { EntrySubtitle(entry) },
             trailingContent = {
                 Icon(
                     imageVector = Icons.Filled.DragHandle,
@@ -476,7 +507,7 @@ private fun TrackRow(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DeactivatedRow(
-    track: AudioTrack,
+    entry: MediaEntry,
     showHeader: Boolean,
     onReactivate: () -> Unit,
     onLoadThumbnail: suspend (String) -> Bitmap?,
@@ -502,19 +533,19 @@ private fun DeactivatedRow(
                     .clickable(onClick = onReactivate)
                     .alpha(0.5f),
             leadingContent = {
-                TrackThumbnail(
-                    trackUri = track.uri,
+                EntryThumbnail(
+                    entry = entry,
                     isHighlighted = false,
                     onLoadThumbnail = onLoadThumbnail,
                 )
             },
             headlineContent = {
                 Text(
-                    text = track.title,
+                    text = entryTitle(entry),
                     style = MaterialTheme.typography.bodyLarge,
                 )
             },
-            supportingContent = { TrackSubtitle(track) },
+            supportingContent = { EntrySubtitle(entry) },
             trailingContent = {
                 Icon(
                     imageVector = Icons.Filled.DragHandle,
@@ -527,28 +558,50 @@ private fun DeactivatedRow(
     }
 }
 
-@Composable
-private fun TrackSubtitle(track: AudioTrack) {
-    val artist = track.artist
-    Text(
-        text =
-            if (!artist.isNullOrBlank()) {
-                "$artist  •  ${formatDuration(track.durationMs)}"
-            } else {
-                formatDuration(track.durationMs)
-            },
-        style = MaterialTheme.typography.bodySmall,
-    )
-}
+private fun entryTitle(entry: MediaEntry): String =
+    when (entry) {
+        is MediaEntry.Audio -> entry.track.title
+        is MediaEntry.Video -> entry.video.displayName
+    }
 
 @Composable
-private fun TrackThumbnail(
-    trackUri: String,
+private fun EntrySubtitle(entry: MediaEntry) {
+    val text =
+        when (entry) {
+            is MediaEntry.Audio -> {
+                val artist = entry.track.artist
+                if (!artist.isNullOrBlank()) {
+                    "$artist  •  ${formatDuration(entry.durationMs)}"
+                } else {
+                    formatDuration(entry.durationMs)
+                }
+            }
+            is MediaEntry.Video -> {
+                val video = entry.video
+                if (video.width > 0 && video.height > 0) {
+                    "${video.width}×${video.height}  •  ${formatDuration(entry.durationMs)}"
+                } else {
+                    formatDuration(entry.durationMs)
+                }
+            }
+        }
+    Text(text = text, style = MaterialTheme.typography.bodySmall)
+}
+
+private fun placeholderIconFor(kind: MediaKind) =
+    when (kind) {
+        MediaKind.AUDIO -> Icons.Filled.MusicNote
+        MediaKind.VIDEO -> Icons.Filled.Movie
+    }
+
+@Composable
+private fun EntryThumbnail(
+    entry: MediaEntry,
     isHighlighted: Boolean,
     onLoadThumbnail: suspend (String) -> Bitmap?,
 ) {
-    val cover by produceState<Bitmap?>(initialValue = null, key1 = trackUri) {
-        value = onLoadThumbnail(trackUri)
+    val cover by produceState<Bitmap?>(initialValue = null, key1 = entry.uri) {
+        value = onLoadThumbnail(entry.uri)
     }
     val shape = RoundedCornerShape(6.dp)
     Box(
@@ -569,7 +622,7 @@ private fun TrackThumbnail(
             )
         } else {
             Icon(
-                imageVector = Icons.Filled.MusicNote,
+                imageVector = placeholderIconFor(entry.kind),
                 contentDescription = stringResource(R.string.player_no_cover_art),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -618,13 +671,13 @@ private fun SwipeRemoveBackground(direction: SwipeToDismissBoxValue) {
 }
 
 /**
- * Hand-rolled drag state for the track list (ADR-008: no reorder dependency). Two modes:
+ * Hand-rolled drag state for the entry list (ADR-008: no reorder dependency). Two modes:
  *
  * - **Active drag** (a row in the active section, index < [activeCount]): continuous reorder — crossing
  *   an active neighbour's midpoint triggers [onMove] and the dragged index follows the item. Targets are
  *   clamped to the active section.
  * - **Deactivated drag** (a greyed row): drop-commit — the row only translates visually while dragging;
- *   on release, if it landed over the active section, [onReactivateAt] re-adds the track at that position.
+ *   on release, if it landed over the active section, [onReactivateAt] re-adds the entry at that position.
  *
  * The dragged item is always translated to follow the finger via [draggingItemOffset].
  */
@@ -638,7 +691,7 @@ private class DragDropState(
     var draggingItemIndex by mutableStateOf<Int?>(null)
         private set
 
-    private var draggingTrackIndex: Int? = null
+    private var draggingEntryIndex: Int? = null
     private var fromDeactivated = false
     private var draggingItemInitialOffset by mutableIntStateOf(0)
     private var draggingDelta by mutableFloatStateOf(0f)
@@ -655,24 +708,24 @@ private class DragDropState(
                 listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
             }
 
-    fun onActiveDragStart(index: Int) = start(index, fromDeactivated = false, trackIndex = null)
+    fun onActiveDragStart(index: Int) = start(index, fromDeactivated = false, entryIndex = null)
 
     fun onDeactivatedDragStart(
         index: Int,
-        trackIndex: Int,
-    ) = start(index, fromDeactivated = true, trackIndex = trackIndex)
+        entryIndex: Int,
+    ) = start(index, fromDeactivated = true, entryIndex = entryIndex)
 
     private fun start(
         index: Int,
         fromDeactivated: Boolean,
-        trackIndex: Int?,
+        entryIndex: Int?,
     ) {
         val info = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index } ?: return
         draggingItemIndex = index
         draggingItemInitialOffset = info.offset
         draggingDelta = 0f
         this.fromDeactivated = fromDeactivated
-        draggingTrackIndex = trackIndex
+        draggingEntryIndex = entryIndex
     }
 
     fun onDrag(deltaY: Float) {
@@ -695,7 +748,7 @@ private class DragDropState(
             dropDeactivatedIntoActive()
         }
         draggingItemIndex = null
-        draggingTrackIndex = null
+        draggingEntryIndex = null
         fromDeactivated = false
         draggingDelta = 0f
         draggingItemInitialOffset = 0
@@ -703,7 +756,7 @@ private class DragDropState(
 
     private fun dropDeactivatedIntoActive() {
         val dragging = currentItemInfo ?: return
-        val trackIndex = draggingTrackIndex ?: return
+        val entryIndex = draggingEntryIndex ?: return
         val center = (draggingItemInitialOffset + draggingDelta + dragging.size / 2f).toInt()
         val activeItems = listState.layoutInfo.visibleItemsInfo.filter { it.index < activeCount }
         val targetPosition =
@@ -712,7 +765,7 @@ private class DragDropState(
                 center < activeItems.first().offset -> 0
                 else -> activeItems.firstOrNull { center in it.offset..(it.offset + it.size) }?.index
             }
-        if (targetPosition != null) onReactivateAt(trackIndex, targetPosition)
+        if (targetPosition != null) onReactivateAt(entryIndex, targetPosition)
     }
 }
 
@@ -727,10 +780,10 @@ private fun PlayerControls(
     onLoadArtwork: suspend (String) -> Bitmap?,
 ) {
     val displayIndex = state.selectedIndex ?: state.currentIndex
-    val displayTrack = displayIndex?.let { state.tracks.getOrNull(it) }
+    val displayEntry = displayIndex?.let { state.entries.getOrNull(it) }
     val isPendingSelection = displayIndex != null && displayIndex != state.currentIndex
     val positionMs = if (isPendingSelection) 0L else state.status.positionMs
-    val durationMs = if (isPendingSelection) (displayTrack?.durationMs ?: 0L) else state.status.durationMs
+    val durationMs = if (isPendingSelection) (displayEntry?.durationMs ?: 0L) else state.status.durationMs
     val isSeekable = displayIndex != null && !isPendingSelection && durationMs > 0L
     Surface(tonalElevation = 3.dp) {
         Column(
@@ -740,7 +793,7 @@ private fun PlayerControls(
                     .navigationBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
-            CurrentTrackInfo(displayTrack = displayTrack, onLoadArtwork = onLoadArtwork)
+            CurrentTrackInfo(displayEntry = displayEntry, onLoadArtwork = onLoadArtwork)
             Spacer(modifier = Modifier.height(8.dp))
             ProgressRow(
                 positionMs = positionMs,
@@ -762,10 +815,10 @@ private fun PlayerControls(
 
 @Composable
 private fun CurrentTrackInfo(
-    displayTrack: AudioTrack?,
+    displayEntry: MediaEntry?,
     onLoadArtwork: suspend (String) -> Bitmap?,
 ) {
-    if (displayTrack == null) {
+    if (displayEntry == null) {
         Text(
             text = stringResource(R.string.player_no_track_hint),
             style = MaterialTheme.typography.bodyMedium,
@@ -773,17 +826,17 @@ private fun CurrentTrackInfo(
         return
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        CoverArt(trackUri = displayTrack.uri, onLoadArtwork = onLoadArtwork)
+        CoverArt(entry = displayEntry, onLoadArtwork = onLoadArtwork)
         Spacer(modifier = Modifier.size(12.dp))
         Column {
             Text(
-                text = displayTrack.title,
+                text = entryTitle(displayEntry),
                 style = MaterialTheme.typography.titleMedium,
             )
-            val artist = displayTrack.artist
-            if (!artist.isNullOrBlank()) {
+            val subtitle = currentEntrySubtitle(displayEntry)
+            if (subtitle != null) {
                 Text(
-                    text = artist,
+                    text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -791,13 +844,19 @@ private fun CurrentTrackInfo(
     }
 }
 
+private fun currentEntrySubtitle(entry: MediaEntry): String? =
+    when (entry) {
+        is MediaEntry.Audio -> entry.track.artist?.takeIf { it.isNotBlank() }
+        is MediaEntry.Video -> entry.video.takeIf { it.width > 0 && it.height > 0 }?.let { "${it.width}×${it.height}" }
+    }
+
 @Composable
 private fun CoverArt(
-    trackUri: String,
+    entry: MediaEntry,
     onLoadArtwork: suspend (String) -> Bitmap?,
 ) {
-    val cover by produceState<Bitmap?>(initialValue = null, key1 = trackUri) {
-        value = onLoadArtwork(trackUri)
+    val cover by produceState<Bitmap?>(initialValue = null, key1 = entry.uri) {
+        value = onLoadArtwork(entry.uri)
     }
     val shape = RoundedCornerShape(8.dp)
     val bitmap = cover
@@ -821,7 +880,7 @@ private fun CoverArt(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.Filled.MusicNote,
+                imageVector = placeholderIconFor(entry.kind),
                 contentDescription = stringResource(R.string.player_no_cover_art),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -884,7 +943,7 @@ private fun TransportRow(
     onPrevious: () -> Unit,
     onToggleShuffle: () -> Unit,
 ) {
-    val playEnabled = state.tracks.isNotEmpty()
+    val playEnabled = state.entries.isNotEmpty()
     val showPause = state.status.isPlaying
     val shuffleDescription =
         if (state.shuffleEnabled) {
@@ -950,6 +1009,147 @@ private fun TransportRow(
                 imageVector = Icons.Filled.SkipNext,
                 contentDescription = stringResource(R.string.player_next),
             )
+        }
+    }
+}
+
+@Composable
+private fun VideoSurface(
+    player: Player?,
+    modifier: Modifier = Modifier,
+) {
+    AndroidView(
+        factory = { context ->
+            PlayerView(context).apply {
+                useController = false
+                setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+            }
+        },
+        update = { view -> view.player = player },
+        onRelease = { view -> view.player = null },
+        modifier = modifier.background(Color.Black),
+    )
+}
+
+@Composable
+private fun InlineVideoHeader(
+    player: Player?,
+    onEnterFullscreen: () -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f),
+    ) {
+        VideoSurface(player = player, modifier = Modifier.fillMaxSize())
+        IconButton(
+            onClick = onEnterFullscreen,
+            modifier = Modifier.align(Alignment.BottomEnd),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Fullscreen,
+                contentDescription = stringResource(R.string.player_enter_fullscreen),
+                tint = Color.White,
+            )
+        }
+    }
+}
+
+@Composable
+private fun FullscreenVideo(
+    player: Player?,
+    state: FolderPlayerUiState.Ready,
+    onExitFullscreen: () -> Unit,
+    onPlayOrToggle: () -> Unit,
+    onNext: () -> Unit,
+    onPrevious: () -> Unit,
+    onSeek: (Long) -> Unit,
+) {
+    ImmersiveLandscapeEffect()
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+    ) {
+        VideoSurface(player = player, modifier = Modifier.fillMaxSize())
+        IconButton(
+            onClick = onExitFullscreen,
+            modifier = Modifier.align(Alignment.TopStart),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.FullscreenExit,
+                contentDescription = stringResource(R.string.player_exit_fullscreen),
+                tint = Color.White,
+            )
+        }
+        Column(
+            modifier =
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            ProgressRow(
+                positionMs = state.status.positionMs,
+                durationMs = state.status.durationMs,
+                isSeekable = state.status.durationMs > 0L,
+                onSeek = onSeek,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onPrevious, enabled = state.hasPrevious) {
+                    Icon(
+                        imageVector = Icons.Filled.SkipPrevious,
+                        contentDescription = stringResource(R.string.player_previous),
+                        tint = Color.White,
+                    )
+                }
+                IconButton(onClick = onPlayOrToggle) {
+                    Icon(
+                        imageVector = if (state.status.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription =
+                            if (state.status.isPlaying) {
+                                stringResource(R.string.player_pause)
+                            } else {
+                                stringResource(R.string.player_play)
+                            },
+                        tint = Color.White,
+                    )
+                }
+                IconButton(onClick = onNext, enabled = state.hasNext) {
+                    Icon(
+                        imageVector = Icons.Filled.SkipNext,
+                        contentDescription = stringResource(R.string.player_next),
+                        tint = Color.White,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Hides the system bars and locks landscape while composed; restores both on dispose (ADR-010). */
+@Composable
+private fun ImmersiveLandscapeEffect() {
+    val context = LocalContext.current
+    DisposableEffect(Unit) {
+        val activity = context as? Activity
+        val window = activity?.window
+        val insetsController = window?.let { WindowCompat.getInsetsController(it, it.decorView) }
+        insetsController?.apply {
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.systemBars())
+        }
+        val previousOrientation = activity?.requestedOrientation
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        onDispose {
+            insetsController?.show(WindowInsetsCompat.Type.systemBars())
+            activity?.requestedOrientation = previousOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
 }

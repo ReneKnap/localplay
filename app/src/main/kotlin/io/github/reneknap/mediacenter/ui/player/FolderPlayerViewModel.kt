@@ -6,15 +6,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.reneknap.mediacenter.data.audio.ArtworkReader
-import io.github.reneknap.mediacenter.data.audio.AudioRepository
-import io.github.reneknap.mediacenter.data.audio.AudioTrack
-import io.github.reneknap.mediacenter.data.audio.FolderScanState
-import io.github.reneknap.mediacenter.data.audio.FolderTracks
 import io.github.reneknap.mediacenter.data.audio.PlaybackQueue
 import io.github.reneknap.mediacenter.data.audio.PlaybackQueueState
-import io.github.reneknap.mediacenter.data.video.FolderVideos
-import io.github.reneknap.mediacenter.data.video.VideoRepository
-import io.github.reneknap.mediacenter.data.video.VideoScanState
+import io.github.reneknap.mediacenter.data.media.FolderMediaContent
+import io.github.reneknap.mediacenter.data.media.MediaContentScanState
+import io.github.reneknap.mediacenter.data.media.MediaEntry
+import io.github.reneknap.mediacenter.data.media.MediaRepository
+import androidx.media3.common.Player
 import io.github.reneknap.mediacenter.playback.PlaybackController
 import io.github.reneknap.mediacenter.playback.PlayerStatus
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,27 +29,30 @@ import javax.inject.Inject
 class FolderPlayerViewModel
     @Inject
     constructor(
-        private val audioRepository: AudioRepository,
-        private val videoRepository: VideoRepository,
+        private val mediaRepository: MediaRepository,
         private val queue: PlaybackQueue,
         private val controller: PlaybackController,
         private val artworkReader: ArtworkReader,
         savedStateHandle: SavedStateHandle,
     ) : ViewModel() {
         val folderUri: String = savedStateHandle.get<String>(ARG_FOLDER_URI).orEmpty()
-        private val startTrackUri: String? = savedStateHandle.get<String>(ARG_START_TRACK_URI)
+        private val startEntryUri: String? = savedStateHandle.get<String>(ARG_START_TRACK_URI)
 
         private val selectedIndex = MutableStateFlow<Int?>(null)
+        private val fullscreen = MutableStateFlow(false)
+
+        /** The session [Player] for binding the inline/fullscreen video surface (ADR-010). */
+        val player: StateFlow<Player?> get() = controller.player
 
         val uiState: StateFlow<FolderPlayerUiState> =
             combine(
-                audioRepository.folders,
-                videoRepository.folders,
+                mediaRepository.folders,
                 queue.state,
                 controller.status,
                 selectedIndex,
-            ) { folders, videoFolders, queueState, status, selected ->
-                project(folders, videoFolders, queueState, status, selected)
+                fullscreen,
+            ) { folders, queueState, status, selected, isFullscreen ->
+                project(folders, queueState, status, selected, isFullscreen)
             }.stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
@@ -61,20 +62,28 @@ class FolderPlayerViewModel
         init {
             viewModelScope.launch {
                 controller.prepareFolder(folderUri)
-                startTrackUri?.let { applyStartTrackSelection(it) }
+                startEntryUri?.let { applyStartEntrySelection(it) }
+            }
+            viewModelScope.launch {
+                // Leave fullscreen automatically once the current entry is no longer a video, so a later
+                // video (auto-advance or manual) never silently re-enters fullscreen.
+                queue.state.collect { state ->
+                    val current = (state as? PlaybackQueueState.Active)?.let { it.entries[it.currentIndex] }
+                    if (current !is MediaEntry.Video) fullscreen.value = false
+                }
             }
         }
 
-        private suspend fun applyStartTrackSelection(trackUri: String) {
-            val tracks = readyTracks() ?: return
-            val index = tracks.indexOfFirst { it.uri == trackUri }
+        private suspend fun applyStartEntrySelection(entryUri: String) {
+            val entries = readyEntries() ?: return
+            val index = entries.indexOfFirst { it.uri == entryUri }
             if (index >= 0) selectedIndex.value = index
         }
 
-        private suspend fun readyTracks(): List<AudioTrack>? {
-            val folders = audioRepository.folders.first()
+        private suspend fun readyEntries(): List<MediaEntry>? {
+            val folders = mediaRepository.folders.first()
             val scan = folders.firstOrNull { it.folder.uri == folderUri }?.scan
-            return (scan as? FolderScanState.Ready)?.tracks
+            return (scan as? MediaContentScanState.Ready)?.entries
         }
 
         fun selectTrack(index: Int) {
@@ -124,8 +133,8 @@ class FolderPlayerViewModel
 
         fun deactivateTrack(position: Int) {
             val active = queue.state.value as? PlaybackQueueState.Active ?: return
-            val trackIndex = active.playbackOrder.getOrNull(position) ?: return
-            if (selectedIndex.value == trackIndex) selectedIndex.value = null
+            val entryIndex = active.playbackOrder.getOrNull(position) ?: return
+            if (selectedIndex.value == entryIndex) selectedIndex.value = null
             controller.deactivateTrack(position)
         }
 
@@ -148,6 +157,15 @@ class FolderPlayerViewModel
             controller.resetQueue()
         }
 
+        fun toggleFullscreen() {
+            val current = (queue.state.value as? PlaybackQueueState.Active)?.let { it.entries[it.currentIndex] }
+            if (current is MediaEntry.Video) {
+                fullscreen.update { !it }
+            } else {
+                fullscreen.value = false
+            }
+        }
+
         fun toggleShuffle() {
             val enabling = !controller.status.value.shuffleEnabled
             if (enabling) {
@@ -157,25 +175,27 @@ class FolderPlayerViewModel
         }
 
         private fun project(
-            folders: List<FolderTracks>,
-            videoFolders: List<FolderVideos>,
+            folders: List<FolderMediaContent>,
             queueState: PlaybackQueueState,
             status: PlayerStatus,
             selected: Int?,
+            isFullscreen: Boolean,
         ): FolderPlayerUiState {
             val target = folders.firstOrNull { it.folder.uri == folderUri } ?: return FolderPlayerUiState.NotAvailable
             return when (val scan = target.scan) {
-                FolderScanState.Scanning -> FolderPlayerUiState.Loading
-                FolderScanState.Unreachable -> FolderPlayerUiState.NotAvailable
-                is FolderScanState.Ready ->
-                    if (scan.tracks.isEmpty()) {
-                        FolderPlayerUiState.EmptyFolder(target.folder.displayName, hasVideos = hasVideos(videoFolders))
+                MediaContentScanState.Scanning -> FolderPlayerUiState.Loading
+                MediaContentScanState.Unreachable -> FolderPlayerUiState.NotAvailable
+                is MediaContentScanState.Ready ->
+                    if (scan.entries.isEmpty()) {
+                        FolderPlayerUiState.EmptyFolder(target.folder.displayName)
                     } else {
                         val active = activeForFolder(queueState)
+                        val currentEntry = active?.let { it.entries[it.currentIndex] }
+                        val isCurrentVideo = currentEntry is MediaEntry.Video
                         FolderPlayerUiState.Ready(
                             folderName = target.folder.displayName,
-                            tracks = scan.tracks,
-                            displayOrder = active?.playbackOrder ?: scan.tracks.indices.toList(),
+                            entries = scan.entries,
+                            displayOrder = active?.playbackOrder ?: scan.entries.indices.toList(),
                             deactivatedOrder = active?.deactivated ?: emptyList(),
                             currentIndex = active?.currentIndex,
                             selectedIndex = selected,
@@ -183,21 +203,18 @@ class FolderPlayerViewModel
                             shuffleEnabled = status.shuffleEnabled,
                             hasNext = active?.hasNext ?: false,
                             hasPrevious = active?.hasPrevious ?: false,
+                            isCurrentVideo = isCurrentVideo,
+                            isFullscreen = isFullscreen && isCurrentVideo,
                         )
                     }
             }
-        }
-
-        private fun hasVideos(videoFolders: List<FolderVideos>): Boolean {
-            val scan = videoFolders.firstOrNull { it.folder.uri == folderUri }?.scan
-            return scan is VideoScanState.Ready && scan.videos.isNotEmpty()
         }
 
         private fun currentIndexFor(queueState: PlaybackQueueState): Int? = activeForFolder(queueState)?.currentIndex
 
         private fun activeForFolder(queueState: PlaybackQueueState): PlaybackQueueState.Active? {
             val active = queueState as? PlaybackQueueState.Active ?: return null
-            if (active.tracks.firstOrNull()?.folderUri != folderUri) return null
+            if (active.entries.firstOrNull()?.folderUri != folderUri) return null
             return active
         }
 

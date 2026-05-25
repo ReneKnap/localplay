@@ -14,6 +14,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -32,10 +34,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.reneknap.mediacenter.R
-import io.github.reneknap.mediacenter.data.audio.AudioTrack
-import io.github.reneknap.mediacenter.data.audio.FolderScanState
-import io.github.reneknap.mediacenter.data.video.VideoItem
-import io.github.reneknap.mediacenter.data.video.VideoScanState
+import io.github.reneknap.mediacenter.data.media.MediaContentScanState
+import io.github.reneknap.mediacenter.data.media.MediaEntry
 import java.util.Locale
 
 @Composable
@@ -43,21 +43,19 @@ fun FolderListItem(
     folderMedia: FolderMediaUi,
     onRemove: () -> Unit,
     onFolderClick: () -> Unit,
-    onPreviewTrackClick: (trackUri: String) -> Unit,
-    onVideoClick: (videoUri: String) -> Unit,
+    onEntryClick: (entryUri: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember(folderMedia.folder.uri) { mutableStateOf(false) }
     val folder = folderMedia.folder
-    val tracks = (folderMedia.audio as? FolderScanState.Ready)?.tracks.orEmpty()
-    val videos = (folderMedia.video as? VideoScanState.Ready)?.videos.orEmpty()
-    val canExpand = tracks.isNotEmpty() || videos.isNotEmpty()
+    val entries = (folderMedia.content as? MediaContentScanState.Ready)?.entries.orEmpty()
+    val canExpand = entries.isNotEmpty()
 
     Column(modifier = modifier.fillMaxWidth()) {
         ListItem(
             modifier = Modifier.clickable(onClick = onFolderClick),
             headlineContent = { Text(folder.displayName) },
-            supportingContent = { ScanSummary(folderMedia.audio, folderMedia.video) },
+            supportingContent = { ScanSummary(folderMedia.content) },
             leadingContent = {
                 Icon(
                     imageVector = if (folder.isReachable) Icons.Filled.Folder else Icons.Filled.Warning,
@@ -93,17 +91,8 @@ fun FolderListItem(
             },
         )
         if (expanded && canExpand) {
-            tracks.forEach { track ->
-                PreviewTrackRow(
-                    track = track,
-                    onClick = { onPreviewTrackClick(track.uri) },
-                )
-            }
-            if (videos.isNotEmpty()) {
-                SectionCaption(stringResource(R.string.home_folder_videos_section))
-                videos.forEach { video ->
-                    VideoRow(video = video, onClick = { onVideoClick(video.uri) })
-                }
+            entries.forEach { entry ->
+                EntryRow(entry = entry, onClick = { onEntryClick(entry.uri) })
             }
             HorizontalDivider()
         }
@@ -111,26 +100,26 @@ fun FolderListItem(
 }
 
 @Composable
-private fun ScanSummary(
-    audio: FolderScanState,
-    video: VideoScanState,
-) {
-    when {
-        audio is FolderScanState.Unreachable || video is VideoScanState.Unreachable ->
+private fun ScanSummary(content: MediaContentScanState) {
+    when (content) {
+        MediaContentScanState.Unreachable ->
             Text(
                 text = stringResource(R.string.home_folder_not_accessible),
                 color = MaterialTheme.colorScheme.error,
             )
-        audio is FolderScanState.Ready && video is VideoScanState.Ready ->
+        is MediaContentScanState.Ready -> {
+            val audioCount = content.entries.count { it is MediaEntry.Audio }
+            val videoCount = content.entries.count { it is MediaEntry.Video }
             Text(
                 text =
                     stringResource(
                         R.string.home_folder_media_summary,
-                        audioCountLabel(audio.tracks.size),
-                        videoCountLabel(video.videos.size),
+                        audioCountLabel(audioCount),
+                        videoCountLabel(videoCount),
                     ),
             )
-        else -> Text(stringResource(R.string.home_folder_scanning))
+        }
+        MediaContentScanState.Scanning -> Text(stringResource(R.string.home_folder_scanning))
     }
 }
 
@@ -151,18 +140,8 @@ private fun videoCountLabel(count: Int): String =
     }
 
 @Composable
-private fun SectionCaption(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 56.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
-    )
-}
-
-@Composable
-private fun PreviewTrackRow(
-    track: AudioTrack,
+private fun EntryRow(
+    entry: MediaEntry,
     onClick: () -> Unit,
 ) {
     Row(
@@ -171,59 +150,43 @@ private fun PreviewTrackRow(
                 .fillMaxWidth()
                 .heightIn(min = 48.dp)
                 .clickable(onClick = onClick)
-                .padding(start = 56.dp, end = 16.dp),
+                .padding(start = 16.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Icon(
+            imageVector = if (entry is MediaEntry.Video) Icons.Filled.Movie else Icons.Filled.MusicNote,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(modifier = Modifier.size(16.dp))
         Text(
-            text = track.title,
+            text = entryTitle(entry),
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         Spacer(modifier = Modifier.size(8.dp))
-        Text(
-            text = formatDuration(track.durationMs),
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
-}
-
-@Composable
-private fun VideoRow(
-    video: VideoItem,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .clickable(onClick = onClick)
-                .padding(start = 56.dp, end = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = video.displayName,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.weight(1f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Spacer(modifier = Modifier.size(8.dp))
-        if (video.width > 0 && video.height > 0) {
+        if (entry is MediaEntry.Video && entry.video.width > 0 && entry.video.height > 0) {
             Text(
-                text = stringResource(R.string.home_video_resolution, video.width, video.height),
+                text = stringResource(R.string.home_video_resolution, entry.video.width, entry.video.height),
                 style = MaterialTheme.typography.bodySmall,
             )
             Spacer(modifier = Modifier.size(8.dp))
         }
         Text(
-            text = formatDuration(video.durationMs),
+            text = formatDuration(entry.durationMs),
             style = MaterialTheme.typography.bodySmall,
         )
     }
 }
+
+private fun entryTitle(entry: MediaEntry): String =
+    when (entry) {
+        is MediaEntry.Audio -> entry.track.title
+        is MediaEntry.Video -> entry.video.displayName
+    }
 
 @Composable
 private fun formatDuration(durationMs: Long): String {

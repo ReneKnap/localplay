@@ -5,20 +5,20 @@ import app.cash.turbine.test
 import io.github.reneknap.mediacenter.MainDispatcherRule
 import io.github.reneknap.mediacenter.data.audio.AudioTrack
 import io.github.reneknap.mediacenter.data.audio.FakeArtworkReader
-import io.github.reneknap.mediacenter.data.audio.FakeAudioRepository
-import io.github.reneknap.mediacenter.data.audio.FolderScanState
-import io.github.reneknap.mediacenter.data.audio.FolderTracks
 import io.github.reneknap.mediacenter.data.audio.PlaybackQueueImpl
+import io.github.reneknap.mediacenter.data.audio.PlaybackQueueState
 import io.github.reneknap.mediacenter.data.folder.FolderEntry
-import io.github.reneknap.mediacenter.data.video.FakeVideoRepository
-import io.github.reneknap.mediacenter.data.video.FolderVideos
+import io.github.reneknap.mediacenter.data.media.FakeMediaRepository
+import io.github.reneknap.mediacenter.data.media.FolderMediaContent
+import io.github.reneknap.mediacenter.data.media.MediaContentScanState
+import io.github.reneknap.mediacenter.data.media.MediaEntry
 import io.github.reneknap.mediacenter.data.video.VideoItem
-import io.github.reneknap.mediacenter.data.video.VideoScanState
 import io.github.reneknap.mediacenter.playback.FakePlaybackController
 import io.github.reneknap.mediacenter.playback.PlayerStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -30,17 +30,15 @@ class FolderPlayerViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private lateinit var audioRepository: FakeAudioRepository
-    private lateinit var videoRepository: FakeVideoRepository
+    private lateinit var mediaRepository: FakeMediaRepository
     private lateinit var queue: PlaybackQueueImpl
     private lateinit var controller: FakePlaybackController
     private lateinit var artworkReader: FakeArtworkReader
 
     @Before
     fun setUp() {
-        audioRepository = FakeAudioRepository()
-        videoRepository = FakeVideoRepository()
-        queue = PlaybackQueueImpl(audioRepository = audioRepository)
+        mediaRepository = FakeMediaRepository()
+        queue = PlaybackQueueImpl(mediaRepository = mediaRepository)
         controller = FakePlaybackController()
         artworkReader = FakeArtworkReader()
     }
@@ -53,8 +51,7 @@ class FolderPlayerViewModelTest {
         if (startTrackUri != null) args["startTrackUri"] = startTrackUri
         val handle = SavedStateHandle(args)
         return FolderPlayerViewModel(
-            audioRepository = audioRepository,
-            videoRepository = videoRepository,
+            mediaRepository = mediaRepository,
             queue = queue,
             controller = controller,
             artworkReader = artworkReader,
@@ -62,75 +59,70 @@ class FolderPlayerViewModelTest {
         )
     }
 
-    private fun videoFolder(
-        folderUri: String,
-        displayName: String,
-    ): FolderVideos =
-        FolderVideos(
-            folder = FolderEntry(folderUri, displayName, isReachable = true),
-            scan =
-                VideoScanState.Ready(
-                    listOf(
-                        VideoItem(
-                            uri = "$folderUri/clip.mp4",
-                            folderUri = folderUri,
-                            displayName = "clip.mp4",
-                            mimeType = "video/mp4",
-                            sizeBytes = 0L,
-                            durationMs = 0L,
-                            width = 0,
-                            height = 0,
-                        ),
-                    ),
-                ),
-        )
-
-    private fun track(
+    private fun audio(
         uri: String,
         title: String = uri.substringAfterLast('/'),
-    ): AudioTrack =
-        AudioTrack(
-            uri = uri,
-            folderUri = uri.substringBeforeLast('/'),
-            displayName = "$title.mp3",
-            mimeType = "audio/mpeg",
-            sizeBytes = 0L,
-            title = title,
-            artist = null,
-            album = null,
-            durationMs = 0L,
+    ): MediaEntry =
+        MediaEntry.Audio(
+            AudioTrack(
+                uri = uri,
+                folderUri = uri.substringBeforeLast('/'),
+                displayName = "$title.mp3",
+                mimeType = "audio/mpeg",
+                sizeBytes = 0L,
+                title = title,
+                artist = null,
+                album = null,
+                durationMs = 0L,
+            ),
+        )
+
+    private fun video(
+        uri: String,
+        name: String = uri.substringAfterLast('/'),
+    ): MediaEntry =
+        MediaEntry.Video(
+            VideoItem(
+                uri = uri,
+                folderUri = uri.substringBeforeLast('/'),
+                displayName = "$name.mp4",
+                mimeType = "video/mp4",
+                sizeBytes = 0L,
+                durationMs = 0L,
+                width = 0,
+                height = 0,
+            ),
         )
 
     private fun readyFolder(
         folderUri: String,
         displayName: String,
-        tracks: List<AudioTrack>,
-    ): FolderTracks =
-        FolderTracks(
+        entries: List<MediaEntry>,
+    ): FolderMediaContent =
+        FolderMediaContent(
             folder = FolderEntry(folderUri, displayName, isReachable = true),
-            scan = FolderScanState.Ready(tracks),
+            scan = MediaContentScanState.Ready(entries),
         )
 
-    private fun scanningFolder(folderUri: String): FolderTracks =
-        FolderTracks(
+    private fun scanningFolder(folderUri: String): FolderMediaContent =
+        FolderMediaContent(
             folder = FolderEntry(folderUri, folderUri.substringAfterLast('/'), isReachable = true),
-            scan = FolderScanState.Scanning,
+            scan = MediaContentScanState.Scanning,
         )
 
-    private fun unreachableFolder(folderUri: String): FolderTracks =
-        FolderTracks(
+    private fun unreachableFolder(folderUri: String): FolderMediaContent =
+        FolderMediaContent(
             folder = FolderEntry(folderUri, folderUri.substringAfterLast('/'), isReachable = false),
-            scan = FolderScanState.Unreachable,
+            scan = MediaContentScanState.Unreachable,
         )
 
     @Test
     fun `init invokes prepareFolder on controller`() =
         runTest {
             val folderUri = "content://music/a"
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", listOf(track("$folderUri/1")))))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", listOf(audio("$folderUri/1")))))
 
             viewModel(folderUri)
-            // Allow init coroutine to run
             testScheduler.advanceUntilIdle()
 
             assertEquals(listOf(folderUri), controller.preparedFolders)
@@ -139,7 +131,7 @@ class FolderPlayerViewModelTest {
     @Test
     fun `unknown folder uri yields NotAvailable`() =
         runTest {
-            audioRepository.emit(emptyList())
+            mediaRepository.emit(emptyList())
             val vm = viewModel("content://music/unknown")
 
             vm.uiState.test {
@@ -156,7 +148,7 @@ class FolderPlayerViewModelTest {
     fun `scanning folder yields Loading`() =
         runTest {
             val folderUri = "content://music/scanning"
-            audioRepository.emit(listOf(scanningFolder(folderUri)))
+            mediaRepository.emit(listOf(scanningFolder(folderUri)))
             val vm = viewModel(folderUri)
 
             vm.uiState.test {
@@ -169,7 +161,7 @@ class FolderPlayerViewModelTest {
     fun `unreachable folder yields NotAvailable`() =
         runTest {
             val folderUri = "content://music/gone"
-            audioRepository.emit(listOf(unreachableFolder(folderUri)))
+            mediaRepository.emit(listOf(unreachableFolder(folderUri)))
             val vm = viewModel(folderUri)
 
             vm.uiState.test {
@@ -183,11 +175,11 @@ class FolderPlayerViewModelTest {
         }
 
     @Test
-    fun `ready folder yields Ready with folder name and tracks`() =
+    fun `ready folder yields Ready with folder name and entries`() =
         runTest {
             val folderUri = "content://music/a"
-            val tracks = listOf(track("$folderUri/1"), track("$folderUri/2"))
-            audioRepository.emit(listOf(readyFolder(folderUri, "Album A", tracks)))
+            val entries = listOf(audio("$folderUri/1"), audio("$folderUri/2"))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "Album A", entries)))
             val vm = viewModel(folderUri)
 
             vm.uiState.test {
@@ -196,17 +188,120 @@ class FolderPlayerViewModelTest {
                     state = awaitItem()
                 }
                 assertEquals("Album A", state.folderName)
-                assertEquals(tracks, state.tracks)
+                assertEquals(entries, state.entries)
                 assertNull(state.selectedIndex)
                 cancelAndIgnoreRemainingEvents()
             }
         }
 
     @Test
-    fun `ready folder with no tracks yields EmptyFolder with folder name`() =
+    fun `ready folder with mixed audio and video yields Ready with both entries`() =
+        runTest {
+            val folderUri = "content://media/a"
+            val entries = listOf(audio("$folderUri/1"), video("$folderUri/2"))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "Mixed", entries)))
+            val vm = viewModel(folderUri)
+
+            vm.uiState.test {
+                var state: FolderPlayerUiState = awaitItem()
+                while (state !is FolderPlayerUiState.Ready) {
+                    state = awaitItem()
+                }
+                assertEquals(entries, state.entries)
+                assertTrue(state.entries[1] is MediaEntry.Video)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `current video entry marks Ready as isCurrentVideo`() =
+        runTest {
+            val folderUri = "content://media/a"
+            val entries = listOf(video("$folderUri/1"), audio("$folderUri/2"))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "Mixed", entries)))
+            queue.setQueue(folderUri) // currentIndex 0 = video
+            val vm = viewModel(folderUri)
+
+            vm.uiState.test {
+                var state: FolderPlayerUiState = awaitItem()
+                while (state !is FolderPlayerUiState.Ready || !state.isCurrentVideo) {
+                    state = awaitItem()
+                }
+                assertTrue(state.isCurrentVideo)
+                assertFalse(state.isFullscreen)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `current audio entry marks Ready as not video`() =
+        runTest {
+            val folderUri = "content://media/a"
+            val entries = listOf(audio("$folderUri/1"), video("$folderUri/2"))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "Mixed", entries)))
+            queue.setQueue(folderUri) // currentIndex 0 = audio
+            val vm = viewModel(folderUri)
+
+            vm.uiState.test {
+                var state: FolderPlayerUiState = awaitItem()
+                while (state !is FolderPlayerUiState.Ready) {
+                    state = awaitItem()
+                }
+                assertFalse(state.isCurrentVideo)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `toggleFullscreen enables fullscreen when the current entry is video`() =
+        runTest {
+            val folderUri = "content://media/a"
+            val entries = listOf(video("$folderUri/1"))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "Clip", entries)))
+            queue.setQueue(folderUri) // currentIndex 0 = video
+            val vm = viewModel(folderUri)
+            testScheduler.advanceUntilIdle()
+
+            vm.toggleFullscreen()
+
+            vm.uiState.test {
+                var state: FolderPlayerUiState = awaitItem()
+                while (state !is FolderPlayerUiState.Ready || !state.isFullscreen) {
+                    state = awaitItem()
+                }
+                assertTrue(state.isFullscreen)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `toggleFullscreen does not enter fullscreen when the current entry is audio`() =
+        runTest {
+            val folderUri = "content://media/a"
+            val entries = listOf(audio("$folderUri/1"), video("$folderUri/2"))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "Mixed", entries)))
+            queue.setQueue(folderUri) // currentIndex 0 = audio
+            val vm = viewModel(folderUri)
+            testScheduler.advanceUntilIdle()
+
+            vm.toggleFullscreen()
+            testScheduler.advanceUntilIdle()
+
+            vm.uiState.test {
+                var state: FolderPlayerUiState = awaitItem()
+                while (state !is FolderPlayerUiState.Ready) {
+                    state = awaitItem()
+                }
+                assertFalse(state.isFullscreen)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `ready folder with no entries yields EmptyFolder with folder name`() =
         runTest {
             val folderUri = "content://music/empty"
-            audioRepository.emit(listOf(readyFolder(folderUri, "Empty Album", emptyList())))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "Empty Album", emptyList())))
             val vm = viewModel(folderUri)
 
             vm.uiState.test {
@@ -220,46 +315,11 @@ class FolderPlayerViewModelTest {
         }
 
     @Test
-    fun `empty audio folder with videos yields EmptyFolder hasVideos true`() =
-        runTest {
-            val folderUri = "content://music/clips"
-            audioRepository.emit(listOf(readyFolder(folderUri, "Clips", emptyList())))
-            videoRepository.emit(listOf(videoFolder(folderUri, "Clips")))
-            val vm = viewModel(folderUri)
-
-            vm.uiState.test {
-                var state: FolderPlayerUiState = awaitItem()
-                while (state is FolderPlayerUiState.Loading) {
-                    state = awaitItem()
-                }
-                assertEquals(FolderPlayerUiState.EmptyFolder("Clips", hasVideos = true), state)
-                cancelAndIgnoreRemainingEvents()
-            }
-        }
-
-    @Test
-    fun `empty audio folder without videos yields EmptyFolder hasVideos false`() =
-        runTest {
-            val folderUri = "content://music/empty"
-            audioRepository.emit(listOf(readyFolder(folderUri, "Empty", emptyList())))
-            val vm = viewModel(folderUri)
-
-            vm.uiState.test {
-                var state: FolderPlayerUiState = awaitItem()
-                while (state is FolderPlayerUiState.Loading) {
-                    state = awaitItem()
-                }
-                assertEquals(FolderPlayerUiState.EmptyFolder("Empty", hasVideos = false), state)
-                cancelAndIgnoreRemainingEvents()
-            }
-        }
-
-    @Test
     fun `selectTrack sets selectedIndex`() =
         runTest {
             val folderUri = "content://music/a"
-            val tracks = listOf(track("$folderUri/1"), track("$folderUri/2"))
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val entries = listOf(audio("$folderUri/1"), audio("$folderUri/2"))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", entries)))
             val vm = viewModel(folderUri)
 
             vm.selectTrack(1)
@@ -278,8 +338,8 @@ class FolderPlayerViewModelTest {
     fun `selectTrack on already-selected index clears selection`() =
         runTest {
             val folderUri = "content://music/a"
-            val tracks = listOf(track("$folderUri/1"), track("$folderUri/2"))
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val entries = listOf(audio("$folderUri/1"), audio("$folderUri/2"))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", entries)))
             val vm = viewModel(folderUri)
 
             vm.selectTrack(1)
@@ -299,8 +359,8 @@ class FolderPlayerViewModelTest {
     fun `play with no selection delegates playAtIndex 0`() =
         runTest {
             val folderUri = "content://music/a"
-            val tracks = listOf(track("$folderUri/1"), track("$folderUri/2"))
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val entries = listOf(audio("$folderUri/1"), audio("$folderUri/2"))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", entries)))
             val vm = viewModel(folderUri)
 
             vm.play()
@@ -312,8 +372,8 @@ class FolderPlayerViewModelTest {
     fun `play with selection delegates playAtIndex with selected index`() =
         runTest {
             val folderUri = "content://music/a"
-            val tracks = listOf(track("$folderUri/1"), track("$folderUri/2"), track("$folderUri/3"))
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val entries = listOf(audio("$folderUri/1"), audio("$folderUri/2"), audio("$folderUri/3"))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", entries)))
             val vm = viewModel(folderUri)
 
             vm.selectTrack(2)
@@ -326,7 +386,7 @@ class FolderPlayerViewModelTest {
     fun `togglePlayPause forwards to controller`() =
         runTest {
             val folderUri = "content://music/a"
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", listOf(track("$folderUri/1")))))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", listOf(audio("$folderUri/1")))))
             val vm = viewModel(folderUri)
 
             vm.togglePlayPause()
@@ -338,7 +398,7 @@ class FolderPlayerViewModelTest {
     fun `next forwards to controller`() =
         runTest {
             val folderUri = "content://music/a"
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", listOf(track("$folderUri/1")))))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", listOf(audio("$folderUri/1")))))
             val vm = viewModel(folderUri)
 
             vm.next()
@@ -350,7 +410,7 @@ class FolderPlayerViewModelTest {
     fun `previous forwards to controller`() =
         runTest {
             val folderUri = "content://music/a"
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", listOf(track("$folderUri/1")))))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", listOf(audio("$folderUri/1")))))
             val vm = viewModel(folderUri)
 
             vm.previous()
@@ -359,11 +419,11 @@ class FolderPlayerViewModelTest {
         }
 
     @Test
-    fun `selectTrack during playback switches to that track via controller`() =
+    fun `selectTrack during playback switches to that entry via controller`() =
         runTest {
             val folderUri = "content://music/a"
-            val tracks = listOf(track("$folderUri/1"), track("$folderUri/2"), track("$folderUri/3"))
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val entries = listOf(audio("$folderUri/1"), audio("$folderUri/2"), audio("$folderUri/3"))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", entries)))
             queue.setQueue(folderUri)
             controller.emitStatus(PlayerStatus(isPlaying = true))
             val vm = viewModel(folderUri)
@@ -374,11 +434,11 @@ class FolderPlayerViewModelTest {
         }
 
     @Test
-    fun `selectTrack on currently playing track is no-op`() =
+    fun `selectTrack on currently playing entry is no-op`() =
         runTest {
             val folderUri = "content://music/a"
-            val tracks = listOf(track("$folderUri/1"), track("$folderUri/2"))
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val entries = listOf(audio("$folderUri/1"), audio("$folderUri/2"))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", entries)))
             queue.setQueue(folderUri) // currentIndex = 0
             controller.emitStatus(PlayerStatus(isPlaying = true))
             val vm = viewModel(folderUri)
@@ -389,11 +449,26 @@ class FolderPlayerViewModelTest {
         }
 
     @Test
-    fun `startTrackUri sets initial selection to that track`() =
+    fun `selecting a video entry plays it via controller`() =
+        runTest {
+            val folderUri = "content://media/a"
+            val entries = listOf(audio("$folderUri/1"), video("$folderUri/2"))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "Mixed", entries)))
+            queue.setQueue(folderUri)
+            controller.emitStatus(PlayerStatus(isPlaying = true))
+            val vm = viewModel(folderUri)
+
+            vm.selectTrack(1) // the video entry
+
+            assertEquals(listOf(1), controller.playedIndexes)
+        }
+
+    @Test
+    fun `startTrackUri sets initial selection to that entry`() =
         runTest {
             val folderUri = "content://music/a"
-            val tracks = listOf(track("$folderUri/1"), track("$folderUri/2"), track("$folderUri/3"))
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val entries = listOf(audio("$folderUri/1"), audio("$folderUri/2"), audio("$folderUri/3"))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", entries)))
             val vm = viewModel(folderUri, startTrackUri = "$folderUri/3")
 
             vm.uiState.test {
@@ -407,11 +482,11 @@ class FolderPlayerViewModelTest {
         }
 
     @Test
-    fun `startTrackUri not matching any track leaves selection null`() =
+    fun `startTrackUri not matching any entry leaves selection null`() =
         runTest {
             val folderUri = "content://music/a"
-            val tracks = listOf(track("$folderUri/1"), track("$folderUri/2"))
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val entries = listOf(audio("$folderUri/1"), audio("$folderUri/2"))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", entries)))
             val vm = viewModel(folderUri, startTrackUri = "$folderUri/ghost")
 
             vm.uiState.test {
@@ -428,7 +503,7 @@ class FolderPlayerViewModelTest {
     fun `toggleShuffle delegates to controller with negated current value`() =
         runTest {
             val folderUri = "content://music/a"
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", listOf(track("$folderUri/1")))))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", listOf(audio("$folderUri/1")))))
             controller.emitStatus(PlayerStatus(shuffleEnabled = false))
             val vm = viewModel(folderUri)
             testScheduler.advanceUntilIdle()
@@ -442,7 +517,7 @@ class FolderPlayerViewModelTest {
     fun `toggleShuffle from enabled state delegates false to controller`() =
         runTest {
             val folderUri = "content://music/a"
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", listOf(track("$folderUri/1")))))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", listOf(audio("$folderUri/1")))))
             controller.emitStatus(PlayerStatus(shuffleEnabled = true))
             val vm = viewModel(folderUri)
             testScheduler.advanceUntilIdle()
@@ -453,11 +528,11 @@ class FolderPlayerViewModelTest {
         }
 
     @Test
-    fun `toggleShuffle anchors selected track via queue moveTo before enabling`() =
+    fun `toggleShuffle anchors selected entry via queue moveTo before enabling`() =
         runTest {
             val folderUri = "content://music/a"
-            val tracks = (1..5).map { track("$folderUri/$it") }
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val entries = (1..5).map { audio("$folderUri/$it") }
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", entries)))
             queue.setQueue(folderUri)
             controller.emitStatus(PlayerStatus(shuffleEnabled = false))
             val vm = viewModel(folderUri)
@@ -467,8 +542,7 @@ class FolderPlayerViewModelTest {
 
             vm.toggleShuffle()
 
-            val state =
-                queue.state.value as io.github.reneknap.mediacenter.data.audio.PlaybackQueueState.Active
+            val state = queue.state.value as PlaybackQueueState.Active
             assertEquals(3, state.currentIndex)
             assertEquals(listOf(true), controller.shuffleEnabledCalls)
         }
@@ -477,8 +551,8 @@ class FolderPlayerViewModelTest {
     fun `Ready state surfaces shuffleEnabled from controller status`() =
         runTest {
             val folderUri = "content://music/a"
-            val tracks = listOf(track("$folderUri/1"))
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val entries = listOf(audio("$folderUri/1"))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", entries)))
             val vm = viewModel(folderUri)
             controller.emitStatus(PlayerStatus(shuffleEnabled = true))
 
@@ -496,8 +570,8 @@ class FolderPlayerViewModelTest {
     fun `Ready state status reflects controller status flow`() =
         runTest {
             val folderUri = "content://music/a"
-            val tracks = listOf(track("$folderUri/1"))
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val entries = listOf(audio("$folderUri/1"))
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", entries)))
             val vm = viewModel(folderUri)
             controller.emitStatus(PlayerStatus(isPlaying = true, positionMs = 5_000L, durationMs = 60_000L))
 
@@ -521,8 +595,8 @@ class FolderPlayerViewModelTest {
     fun `moveTrack delegates to controller`() =
         runTest {
             val folderUri = "content://music/a"
-            val tracks = (0..2).map { track("$folderUri/$it") }
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val entries = (0..2).map { audio("$folderUri/$it") }
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", entries)))
             val vm = viewModel(folderUri)
 
             vm.moveTrack(0, 2)
@@ -534,8 +608,8 @@ class FolderPlayerViewModelTest {
     fun `deactivateTrack delegates to controller`() =
         runTest {
             val folderUri = "content://music/a"
-            val tracks = (0..2).map { track("$folderUri/$it") }
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val entries = (0..2).map { audio("$folderUri/$it") }
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", entries)))
             queue.setQueue(folderUri)
             val vm = viewModel(folderUri)
 
@@ -548,8 +622,8 @@ class FolderPlayerViewModelTest {
     fun `playTrackNext delegates to controller`() =
         runTest {
             val folderUri = "content://music/a"
-            val tracks = (0..2).map { track("$folderUri/$it") }
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val entries = (0..2).map { audio("$folderUri/$it") }
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", entries)))
             val vm = viewModel(folderUri)
 
             vm.playTrackNext(2)
@@ -561,8 +635,8 @@ class FolderPlayerViewModelTest {
     fun `reactivateTrack delegates to controller`() =
         runTest {
             val folderUri = "content://music/a"
-            val tracks = (0..2).map { track("$folderUri/$it") }
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val entries = (0..2).map { audio("$folderUri/$it") }
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", entries)))
             val vm = viewModel(folderUri)
 
             vm.reactivateTrack(2)
@@ -574,8 +648,8 @@ class FolderPlayerViewModelTest {
     fun `reactivateTrackAt delegates to controller`() =
         runTest {
             val folderUri = "content://music/a"
-            val tracks = (0..2).map { track("$folderUri/$it") }
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val entries = (0..2).map { audio("$folderUri/$it") }
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", entries)))
             val vm = viewModel(folderUri)
 
             vm.reactivateTrackAt(2, 1)
@@ -587,8 +661,8 @@ class FolderPlayerViewModelTest {
     fun `resetQueue delegates to controller`() =
         runTest {
             val folderUri = "content://music/a"
-            val tracks = (0..2).map { track("$folderUri/$it") }
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val entries = (0..2).map { audio("$folderUri/$it") }
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", entries)))
             val vm = viewModel(folderUri)
 
             vm.resetQueue()
@@ -597,11 +671,11 @@ class FolderPlayerViewModelTest {
         }
 
     @Test
-    fun `deactivateTrack clears selectedIndex when the selected track is deactivated`() =
+    fun `deactivateTrack clears selectedIndex when the selected entry is deactivated`() =
         runTest {
             val folderUri = "content://music/a"
-            val tracks = (0..2).map { track("$folderUri/$it") }
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val entries = (0..2).map { audio("$folderUri/$it") }
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", entries)))
             queue.setQueue(folderUri)
             val vm = viewModel(folderUri)
             vm.selectTrack(1)
@@ -619,11 +693,11 @@ class FolderPlayerViewModelTest {
         }
 
     @Test
-    fun `deactivateTrack keeps selectedIndex when a different track is deactivated`() =
+    fun `deactivateTrack keeps selectedIndex when a different entry is deactivated`() =
         runTest {
             val folderUri = "content://music/a"
-            val tracks = (0..2).map { track("$folderUri/$it") }
-            audioRepository.emit(listOf(readyFolder(folderUri, "A", tracks)))
+            val entries = (0..2).map { audio("$folderUri/$it") }
+            mediaRepository.emit(listOf(readyFolder(folderUri, "A", entries)))
             queue.setQueue(folderUri)
             val vm = viewModel(folderUri)
             vm.selectTrack(2)

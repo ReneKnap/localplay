@@ -11,14 +11,11 @@ import androidx.navigation.navArgument
 import io.github.reneknap.mediacenter.data.theme.ThemeMode
 import io.github.reneknap.mediacenter.ui.home.HomeScreen
 import io.github.reneknap.mediacenter.ui.player.FolderPlayerScreen
-import io.github.reneknap.mediacenter.ui.videoplayer.VideoPlayerScreen
 
 private const val ROUTE_HOME = "home"
 private const val ARG_FOLDER_URI = "folderUri"
 private const val ARG_START_TRACK_URI = "startTrackUri"
-private const val ARG_START_VIDEO_URI = "startVideoUri"
 private const val ROUTE_FOLDER = "folder/{$ARG_FOLDER_URI}?$ARG_START_TRACK_URI={$ARG_START_TRACK_URI}"
-private const val ROUTE_VIDEO = "video/{$ARG_FOLDER_URI}?$ARG_START_VIDEO_URI={$ARG_START_VIDEO_URI}"
 
 @Composable
 fun MediaCenterNavGraph(
@@ -41,14 +38,9 @@ fun MediaCenterNavGraph(
                 onFolderClick = { folderUri ->
                     navController.navigate("folder/${Uri.encode(folderUri)}")
                 },
-                onPreviewTrackClick = { folderUri, trackUri ->
+                onEntryClick = { folderUri, entryUri ->
                     navController.navigate(
-                        "folder/${Uri.encode(folderUri)}?$ARG_START_TRACK_URI=${Uri.encode(trackUri)}",
-                    )
-                },
-                onVideoClick = { folderUri, videoUri ->
-                    navController.navigate(
-                        "video/${Uri.encode(folderUri)}?$ARG_START_VIDEO_URI=${Uri.encode(videoUri)}",
+                        "folder/${Uri.encode(folderUri)}?$ARG_START_TRACK_URI=${Uri.encode(entryUri)}",
                     )
                 },
             )
@@ -66,22 +58,6 @@ fun MediaCenterNavGraph(
                 ),
         ) {
             FolderPlayerScreen(
-                onBack = { navController.popBackStack() },
-            )
-        }
-        composable(
-            route = ROUTE_VIDEO,
-            arguments =
-                listOf(
-                    navArgument(ARG_FOLDER_URI) { type = NavType.StringType },
-                    navArgument(ARG_START_VIDEO_URI) {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    },
-                ),
-        ) {
-            VideoPlayerScreen(
                 onBack = { navController.popBackStack() },
             )
         }

@@ -1,5 +1,7 @@
 package io.github.reneknap.mediacenter.data.audio
 
+import io.github.reneknap.mediacenter.data.media.MediaContentScanState
+import io.github.reneknap.mediacenter.data.media.MediaRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -10,14 +12,14 @@ import javax.inject.Singleton
 import kotlin.random.Random
 
 /**
- * Snapshot: the active queue is frozen at [setQueue] time; later [AudioRepository.folders]
+ * Snapshot: the active queue is frozen at [setQueue] time; later [MediaRepository.folders]
  * emissions for the same folder do not mutate it.
  */
 @Singleton
 class PlaybackQueueImpl
     @Inject
     constructor(
-        private val audioRepository: AudioRepository,
+        private val mediaRepository: MediaRepository,
         private val random: Random = Random.Default,
     ) : PlaybackQueue {
         private val _state = MutableStateFlow<PlaybackQueueState>(PlaybackQueueState.Empty)
@@ -27,18 +29,18 @@ class PlaybackQueueImpl
             folderUri: String,
             startTrackUri: String?,
         ) {
-            val folders = audioRepository.folders.first()
+            val folders = mediaRepository.folders.first()
             val scan = folders.firstOrNull { it.folder.uri == folderUri }?.scan
-            if (scan !is FolderScanState.Ready || scan.tracks.isEmpty()) {
+            if (scan !is MediaContentScanState.Ready || scan.entries.isEmpty()) {
                 _state.value = PlaybackQueueState.Empty
                 return
             }
-            val startIndex = scan.tracks.indexOfFirst { it.uri == startTrackUri }.takeIf { it >= 0 } ?: 0
+            val startIndex = scan.entries.indexOfFirst { it.uri == startTrackUri }.takeIf { it >= 0 } ?: 0
             _state.value =
                 PlaybackQueueState.Active(
-                    tracks = scan.tracks,
+                    entries = scan.entries,
                     currentIndex = startIndex,
-                    playbackOrder = scan.tracks.indices.toList(),
+                    playbackOrder = scan.entries.indices.toList(),
                     shuffleEnabled = false,
                 )
         }
@@ -67,7 +69,7 @@ class PlaybackQueueImpl
 
         override fun moveTo(index: Int) {
             _state.update { current ->
-                if (current !is PlaybackQueueState.Active || index !in current.tracks.indices) {
+                if (current !is PlaybackQueueState.Active || index !in current.entries.indices) {
                     return@update current
                 }
                 current.copy(currentIndex = index)
@@ -83,7 +85,7 @@ class PlaybackQueueImpl
                 if (current !is PlaybackQueueState.Active || current.shuffleEnabled == enabled) {
                     return@update current
                 }
-                // Shuffle/sort the current queue members, not all folder tracks: tracks removed in this
+                // Shuffle/sort the current queue members, not all folder entries: entries removed in this
                 // session must not reappear when shuffle is toggled (ADR-008 non-goal).
                 val newOrder =
                     if (enabled) {
@@ -115,14 +117,14 @@ class PlaybackQueueImpl
             _state.update { current ->
                 if (current !is PlaybackQueueState.Active) return@update current
                 if (position !in current.playbackOrder.indices) return@update current
-                // Keep at least one active track; the last active one cannot be deactivated.
+                // Keep at least one active entry; the last active one cannot be deactivated.
                 if (current.playbackOrder.size == 1) return@update current
                 val newOrder = current.playbackOrder.toMutableList()
-                val deactivatedTrackIndex = newOrder.removeAt(position)
+                val deactivatedEntryIndex = newOrder.removeAt(position)
                 val newCurrentIndex =
-                    if (deactivatedTrackIndex == current.currentIndex) {
+                    if (deactivatedEntryIndex == current.currentIndex) {
                         // Advance to the successor that shifted into `position`, or fall back to the
-                        // predecessor when the deactivated track was last in the active order.
+                        // predecessor when the deactivated entry was last in the active order.
                         newOrder[position.coerceAtMost(newOrder.lastIndex)]
                     } else {
                         current.currentIndex
@@ -130,7 +132,7 @@ class PlaybackQueueImpl
                 current.copy(
                     playbackOrder = newOrder,
                     currentIndex = newCurrentIndex,
-                    deactivated = current.deactivated + deactivatedTrackIndex,
+                    deactivated = current.deactivated + deactivatedEntryIndex,
                 )
             }
         }
@@ -178,7 +180,7 @@ class PlaybackQueueImpl
             _state.update { current ->
                 if (current !is PlaybackQueueState.Active) return@update current
                 current.copy(
-                    playbackOrder = current.tracks.indices.toList(),
+                    playbackOrder = current.entries.indices.toList(),
                     deactivated = emptyList(),
                     shuffleEnabled = false,
                 )

@@ -1,6 +1,11 @@
 package io.github.reneknap.mediacenter.data.audio
 
 import io.github.reneknap.mediacenter.data.folder.FolderEntry
+import io.github.reneknap.mediacenter.data.media.FakeMediaRepository
+import io.github.reneknap.mediacenter.data.media.FolderMediaContent
+import io.github.reneknap.mediacenter.data.media.MediaContentScanState
+import io.github.reneknap.mediacenter.data.media.MediaEntry
+import io.github.reneknap.mediacenter.data.video.VideoItem
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -13,51 +18,70 @@ import kotlin.random.Random
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlaybackQueueImplTest {
-    private lateinit var audioRepo: FakeAudioRepository
+    private lateinit var mediaRepo: FakeMediaRepository
 
     @Before
     fun setUp() {
-        audioRepo = FakeAudioRepository()
+        mediaRepo = FakeMediaRepository()
     }
 
     private fun queue(random: Random = Random.Default): PlaybackQueueImpl =
-        PlaybackQueueImpl(audioRepository = audioRepo, random = random)
+        PlaybackQueueImpl(mediaRepository = mediaRepo, random = random)
 
-    private fun track(
+    private fun audio(
         uri: String,
         title: String = uri.substringAfterLast('/'),
-    ): AudioTrack =
-        AudioTrack(
-            uri = uri,
-            folderUri = uri.substringBeforeLast('/'),
-            displayName = "$title.mp3",
-            mimeType = "audio/mpeg",
-            sizeBytes = 0L,
-            title = title,
-            artist = null,
-            album = null,
-            durationMs = 0L,
+    ): MediaEntry =
+        MediaEntry.Audio(
+            AudioTrack(
+                uri = uri,
+                folderUri = uri.substringBeforeLast('/'),
+                displayName = "$title.mp3",
+                mimeType = "audio/mpeg",
+                sizeBytes = 0L,
+                title = title,
+                artist = null,
+                album = null,
+                durationMs = 0L,
+            ),
+        )
+
+    private fun video(
+        uri: String,
+        name: String = uri.substringAfterLast('/'),
+    ): MediaEntry =
+        MediaEntry.Video(
+            VideoItem(
+                uri = uri,
+                folderUri = uri.substringBeforeLast('/'),
+                displayName = "$name.mp4",
+                mimeType = "video/mp4",
+                sizeBytes = 0L,
+                durationMs = 0L,
+                width = 0,
+                height = 0,
+            ),
         )
 
     private fun ready(
         folderUri: String,
-        tracks: List<AudioTrack>,
-    ): FolderTracks =
-        FolderTracks(
+        entries: List<MediaEntry>,
+    ): FolderMediaContent =
+        FolderMediaContent(
             folder = FolderEntry(folderUri, folderUri.substringAfterLast('/'), isReachable = true),
-            scan = FolderScanState.Ready(tracks),
+            scan = MediaContentScanState.Ready(entries),
         )
 
-    private fun scanning(folderUri: String): FolderTracks =
-        FolderTracks(
+    private fun scanning(folderUri: String): FolderMediaContent =
+        FolderMediaContent(
             folder = FolderEntry(folderUri, folderUri.substringAfterLast('/'), isReachable = true),
-            scan = FolderScanState.Scanning,
+            scan = MediaContentScanState.Scanning,
         )
 
-    private fun unreachable(folderUri: String): FolderTracks =
-        FolderTracks(
+    private fun unreachable(folderUri: String): FolderMediaContent =
+        FolderMediaContent(
             folder = FolderEntry(folderUri, folderUri.substringAfterLast('/'), isReachable = false),
-            scan = FolderScanState.Unreachable,
+            scan = MediaContentScanState.Unreachable,
         )
 
     @Test
@@ -70,8 +94,8 @@ class PlaybackQueueImplTest {
     fun `setQueue on Ready folder yields Active with currentIndex zero`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"), track("$folderUri/c"))
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = listOf(audio("$folderUri/a"), audio("$folderUri/b"), audio("$folderUri/c"))
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
 
             val q = queue()
             q.setQueue(folderUri)
@@ -79,18 +103,35 @@ class PlaybackQueueImplTest {
             val state = q.state.value
             assertTrue(state is PlaybackQueueState.Active)
             val active = state as PlaybackQueueState.Active
-            assertEquals(tracks, active.tracks)
+            assertEquals(entries, active.entries)
             assertEquals(0, active.currentIndex)
-            assertSame(tracks[0], active.current)
+            assertSame(entries[0], active.current)
             assertTrue(active.hasNext)
             assertTrue(!active.hasPrevious)
+        }
+
+    @Test
+    fun `setQueue on a mixed audio and video folder builds one interleaved active queue`() =
+        runTest {
+            val folderUri = "content://media/album"
+            val entries =
+                listOf(audio("$folderUri/a"), video("$folderUri/b"), audio("$folderUri/c"))
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
+
+            val q = queue()
+            q.setQueue(folderUri)
+
+            val active = q.state.value as PlaybackQueueState.Active
+            assertEquals(entries, active.entries)
+            assertEquals(listOf(0, 1, 2), active.playbackOrder)
+            assertTrue(active.entries[1] is MediaEntry.Video)
         }
 
     @Test
     fun `setQueue on Scanning folder yields Empty`() =
         runTest {
             val folderUri = "content://music/still-scanning"
-            audioRepo.emit(listOf(scanning(folderUri)))
+            mediaRepo.emit(listOf(scanning(folderUri)))
 
             val q = queue()
             q.setQueue(folderUri)
@@ -102,7 +143,7 @@ class PlaybackQueueImplTest {
     fun `setQueue on Unreachable folder yields Empty`() =
         runTest {
             val folderUri = "content://music/gone"
-            audioRepo.emit(listOf(unreachable(folderUri)))
+            mediaRepo.emit(listOf(unreachable(folderUri)))
 
             val q = queue()
             q.setQueue(folderUri)
@@ -111,10 +152,10 @@ class PlaybackQueueImplTest {
         }
 
     @Test
-    fun `setQueue on Ready folder with empty tracks yields Empty`() =
+    fun `setQueue on Ready folder with empty entries yields Empty`() =
         runTest {
             val folderUri = "content://music/empty"
-            audioRepo.emit(listOf(ready(folderUri, emptyList())))
+            mediaRepo.emit(listOf(ready(folderUri, emptyList())))
 
             val q = queue()
             q.setQueue(folderUri)
@@ -125,7 +166,7 @@ class PlaybackQueueImplTest {
     @Test
     fun `setQueue on unknown folder uri yields Empty`() =
         runTest {
-            audioRepo.emit(listOf(ready("content://music/other", listOf(track("content://music/other/x")))))
+            mediaRepo.emit(listOf(ready("content://music/other", listOf(audio("content://music/other/x")))))
 
             val q = queue()
             q.setQueue("content://music/does-not-exist")
@@ -137,8 +178,8 @@ class PlaybackQueueImplTest {
     fun `moveToNext on Active with hasNext advances currentIndex`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"), track("$folderUri/c"))
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = listOf(audio("$folderUri/a"), audio("$folderUri/b"), audio("$folderUri/c"))
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
 
             val q = queue()
             q.setQueue(folderUri)
@@ -146,7 +187,7 @@ class PlaybackQueueImplTest {
 
             val state = q.state.value as PlaybackQueueState.Active
             assertEquals(1, state.currentIndex)
-            assertSame(tracks[1], state.current)
+            assertSame(entries[1], state.current)
             assertTrue(state.hasPrevious)
             assertTrue(state.hasNext)
         }
@@ -155,8 +196,8 @@ class PlaybackQueueImplTest {
     fun `moveToNext on Active at last index is no-op`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"))
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = listOf(audio("$folderUri/a"), audio("$folderUri/b"))
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
 
             val q = queue()
             q.setQueue(folderUri)
@@ -172,8 +213,8 @@ class PlaybackQueueImplTest {
     fun `moveToPrevious on Active with hasPrevious decreases currentIndex`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"), track("$folderUri/c"))
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = listOf(audio("$folderUri/a"), audio("$folderUri/b"), audio("$folderUri/c"))
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
 
             val q = queue()
             q.setQueue(folderUri)
@@ -183,15 +224,15 @@ class PlaybackQueueImplTest {
 
             val state = q.state.value as PlaybackQueueState.Active
             assertEquals(1, state.currentIndex)
-            assertSame(tracks[1], state.current)
+            assertSame(entries[1], state.current)
         }
 
     @Test
     fun `moveToPrevious on Active at first index is no-op`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"))
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = listOf(audio("$folderUri/a"), audio("$folderUri/b"))
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
 
             val q = queue()
             q.setQueue(folderUri)
@@ -214,7 +255,7 @@ class PlaybackQueueImplTest {
     fun `clear from Active returns to Empty`() =
         runTest {
             val folderUri = "content://music/album"
-            audioRepo.emit(listOf(ready(folderUri, listOf(track("$folderUri/a")))))
+            mediaRepo.emit(listOf(ready(folderUri, listOf(audio("$folderUri/a")))))
 
             val q = queue()
             q.setQueue(folderUri)
@@ -227,18 +268,18 @@ class PlaybackQueueImplTest {
     fun `snapshot — repository change to same folder does not mutate active queue`() =
         runTest {
             val folderUri = "content://music/album"
-            val initialTracks = listOf(track("$folderUri/a"), track("$folderUri/b"))
-            audioRepo.emit(listOf(ready(folderUri, initialTracks)))
+            val initialEntries = listOf(audio("$folderUri/a"), audio("$folderUri/b"))
+            mediaRepo.emit(listOf(ready(folderUri, initialEntries)))
 
             val q = queue()
             q.setQueue(folderUri)
 
-            // Repository now emits a *different* track list for the same folder.
-            val newTracks = listOf(track("$folderUri/x"), track("$folderUri/y"), track("$folderUri/z"))
-            audioRepo.emit(listOf(ready(folderUri, newTracks)))
+            // Repository now emits a *different* entry list for the same folder.
+            val newEntries = listOf(audio("$folderUri/x"), audio("$folderUri/y"), audio("$folderUri/z"))
+            mediaRepo.emit(listOf(ready(folderUri, newEntries)))
 
             val state = q.state.value as PlaybackQueueState.Active
-            assertEquals(initialTracks, state.tracks)
+            assertEquals(initialEntries, state.entries)
             assertEquals(0, state.currentIndex)
         }
 
@@ -246,17 +287,17 @@ class PlaybackQueueImplTest {
     fun `snapshot — repository eviction of source folder does not mutate active queue`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = listOf(track("$folderUri/a"))
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = listOf(audio("$folderUri/a"))
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
 
             val q = queue()
             q.setQueue(folderUri)
 
             // Folder is removed from the repository entirely.
-            audioRepo.emit(emptyList())
+            mediaRepo.emit(emptyList())
 
             val state = q.state.value as PlaybackQueueState.Active
-            assertEquals(tracks, state.tracks)
+            assertEquals(entries, state.entries)
             assertEquals(0, state.currentIndex)
         }
 
@@ -265,9 +306,9 @@ class PlaybackQueueImplTest {
         runTest {
             val uriA = "content://music/a"
             val uriB = "content://music/b"
-            val tracksA = listOf(track("$uriA/1"), track("$uriA/2"))
-            val tracksB = listOf(track("$uriB/1"))
-            audioRepo.emit(listOf(ready(uriA, tracksA), ready(uriB, tracksB)))
+            val entriesA = listOf(audio("$uriA/1"), audio("$uriA/2"))
+            val entriesB = listOf(audio("$uriB/1"))
+            mediaRepo.emit(listOf(ready(uriA, entriesA), ready(uriB, entriesB)))
 
             val q = queue()
             q.setQueue(uriA)
@@ -275,31 +316,31 @@ class PlaybackQueueImplTest {
             q.setQueue(uriB)
 
             val state = q.state.value as PlaybackQueueState.Active
-            assertEquals(tracksB, state.tracks)
+            assertEquals(entriesB, state.entries)
             assertEquals(0, state.currentIndex)
         }
 
     @Test
-    fun `setQueue with startTrackUri matching track sets currentIndex`() =
+    fun `setQueue with startTrackUri matching entry sets currentIndex`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"), track("$folderUri/c"))
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = listOf(audio("$folderUri/a"), audio("$folderUri/b"), audio("$folderUri/c"))
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
 
             val q = queue()
             q.setQueue(folderUri, startTrackUri = "$folderUri/b")
 
             val state = q.state.value as PlaybackQueueState.Active
             assertEquals(1, state.currentIndex)
-            assertSame(tracks[1], state.current)
+            assertSame(entries[1], state.current)
         }
 
     @Test
-    fun `setQueue with startTrackUri not matching any track falls back to index 0`() =
+    fun `setQueue with startTrackUri not matching any entry falls back to index 0`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"))
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = listOf(audio("$folderUri/a"), audio("$folderUri/b"))
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
 
             val q = queue()
             q.setQueue(folderUri, startTrackUri = "$folderUri/does-not-exist")
@@ -312,8 +353,8 @@ class PlaybackQueueImplTest {
     fun `setQueue with startTrackUri null uses index 0`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"))
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = listOf(audio("$folderUri/a"), audio("$folderUri/b"))
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
 
             val q = queue()
             q.setQueue(folderUri, startTrackUri = null)
@@ -326,7 +367,7 @@ class PlaybackQueueImplTest {
     fun `setQueue with startTrackUri on unreachable folder yields Empty`() =
         runTest {
             val folderUri = "content://music/gone"
-            audioRepo.emit(listOf(unreachable(folderUri)))
+            mediaRepo.emit(listOf(unreachable(folderUri)))
 
             val q = queue()
             q.setQueue(folderUri, startTrackUri = "$folderUri/anything")
@@ -338,8 +379,8 @@ class PlaybackQueueImplTest {
     fun `moveTo with valid index updates currentIndex`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"), track("$folderUri/c"))
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = listOf(audio("$folderUri/a"), audio("$folderUri/b"), audio("$folderUri/c"))
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
 
             val q = queue()
             q.setQueue(folderUri)
@@ -347,15 +388,15 @@ class PlaybackQueueImplTest {
 
             val state = q.state.value as PlaybackQueueState.Active
             assertEquals(2, state.currentIndex)
-            assertSame(tracks[2], state.current)
+            assertSame(entries[2], state.current)
         }
 
     @Test
     fun `moveTo with negative index is no-op`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"))
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = listOf(audio("$folderUri/a"), audio("$folderUri/b"))
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
 
             val q = queue()
             q.setQueue(folderUri)
@@ -369,13 +410,13 @@ class PlaybackQueueImplTest {
     fun `moveTo with index equal to size is no-op`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"))
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = listOf(audio("$folderUri/a"), audio("$folderUri/b"))
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
 
             val q = queue()
             q.setQueue(folderUri)
             val before = q.state.value
-            q.moveTo(tracks.size)
+            q.moveTo(entries.size)
 
             assertEquals(before, q.state.value)
         }
@@ -391,8 +432,8 @@ class PlaybackQueueImplTest {
     fun `setQueue creates Active with sequential playback order and shuffle disabled`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = listOf(track("$folderUri/a"), track("$folderUri/b"), track("$folderUri/c"))
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = listOf(audio("$folderUri/a"), audio("$folderUri/b"), audio("$folderUri/c"))
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
 
             val q = queue()
             q.setQueue(folderUri)
@@ -403,11 +444,11 @@ class PlaybackQueueImplTest {
         }
 
     @Test
-    fun `setShuffleEnabled true anchors current track at order position 0 and permutes the rest`() =
+    fun `setShuffleEnabled true anchors current entry at order position 0 and permutes the rest`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (1..5).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (1..5).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue(Random(42L))
             q.setQueue(folderUri)
             q.moveTo(2)
@@ -422,31 +463,31 @@ class PlaybackQueueImplTest {
         }
 
     @Test
-    fun `setShuffleEnabled false resets order to identity and keeps currentIndex on same track`() =
+    fun `setShuffleEnabled false resets order to identity and keeps currentIndex on same entry`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (1..5).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (1..5).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue(Random(42L))
             q.setQueue(folderUri)
             q.moveTo(2)
             q.setShuffleEnabled(enabled = true)
-            val currentTrackBefore = (q.state.value as PlaybackQueueState.Active).current
+            val currentEntryBefore = (q.state.value as PlaybackQueueState.Active).current
 
             q.setShuffleEnabled(enabled = false)
 
             val state = q.state.value as PlaybackQueueState.Active
             assertEquals(listOf(0, 1, 2, 3, 4), state.playbackOrder)
             assertEquals(false, state.shuffleEnabled)
-            assertSame(currentTrackBefore, state.current)
+            assertSame(currentEntryBefore, state.current)
         }
 
     @Test
-    fun `moveToNext during shuffle traverses playback order not tracks order`() =
+    fun `moveToNext during shuffle traverses playback order not entries order`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (1..5).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (1..5).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue(Random(42L))
             q.setQueue(folderUri)
             q.setShuffleEnabled(enabled = true)
@@ -462,8 +503,8 @@ class PlaybackQueueImplTest {
     fun `moveToPrevious during shuffle traverses playback order back`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (1..5).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (1..5).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue(Random(42L))
             q.setQueue(folderUri)
             q.setShuffleEnabled(enabled = true)
@@ -481,8 +522,8 @@ class PlaybackQueueImplTest {
     fun `moveTo during shuffle changes currentIndex but keeps playback order stable`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (1..5).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (1..5).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue(Random(42L))
             q.setQueue(folderUri)
             q.setShuffleEnabled(enabled = true)
@@ -509,15 +550,15 @@ class PlaybackQueueImplTest {
             // Sanity check that the seeded shuffle actually moves things around — without this
             // the other shuffle tests could pass trivially against a no-op implementation.
             val folderUri = "content://music/album"
-            val tracks = (1..8).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (1..8).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue(Random(42L))
             q.setQueue(folderUri)
 
             q.setShuffleEnabled(enabled = true)
 
             val state = q.state.value as PlaybackQueueState.Active
-            assertNotEquals(tracks.indices.toList(), state.playbackOrder)
+            assertNotEquals(entries.indices.toList(), state.playbackOrder)
         }
 
     // ---------------------------------------------------------------------
@@ -525,11 +566,11 @@ class PlaybackQueueImplTest {
     // ---------------------------------------------------------------------
 
     @Test
-    fun `move reorders playbackOrder and keeps currentIndex on the same track`() =
+    fun `move reorders playbackOrder and keeps currentIndex on the same entry`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (0..3).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (0..3).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue()
             q.setQueue(folderUri)
             q.moveTo(1)
@@ -539,15 +580,30 @@ class PlaybackQueueImplTest {
             val state = q.state.value as PlaybackQueueState.Active
             assertEquals(listOf(1, 2, 0, 3), state.playbackOrder)
             assertEquals(1, state.currentIndex)
-            assertEquals(tracks, state.tracks)
+            assertEquals(entries, state.entries)
+        }
+
+    @Test
+    fun `move reorders across media kinds`() =
+        runTest {
+            val folderUri = "content://media/album"
+            val entries = listOf(audio("$folderUri/a"), video("$folderUri/b"), audio("$folderUri/c"))
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
+            val q = queue()
+            q.setQueue(folderUri)
+
+            q.move(2, 0) // move the audio at the end before the video
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(listOf(2, 0, 1), state.playbackOrder)
         }
 
     @Test
     fun `move during shuffle reorders the shuffled order`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (0..4).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (0..4).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue(Random(42L))
             q.setQueue(folderUri)
             q.setShuffleEnabled(enabled = true)
@@ -563,8 +619,8 @@ class PlaybackQueueImplTest {
     fun `move with out-of-bounds position is no-op`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (0..2).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (0..2).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue()
             q.setQueue(folderUri)
             val before = q.state.value
@@ -586,11 +642,11 @@ class PlaybackQueueImplTest {
     // ---------------------------------------------------------------------
 
     @Test
-    fun `deactivate non-current track moves it to the deactivated section`() =
+    fun `deactivate non-current entry moves it to the deactivated section`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (0..3).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (0..3).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue()
             q.setQueue(folderUri)
             q.moveTo(2)
@@ -604,11 +660,28 @@ class PlaybackQueueImplTest {
         }
 
     @Test
-    fun `deactivate current track advances currentIndex to successor in order`() =
+    fun `deactivate a video entry between audio entries partitions correctly`() =
+        runTest {
+            val folderUri = "content://media/album"
+            val entries = listOf(audio("$folderUri/a"), video("$folderUri/b"), audio("$folderUri/c"))
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
+            val q = queue()
+            q.setQueue(folderUri)
+
+            q.deactivate(1) // the video at order position 1
+
+            val state = q.state.value as PlaybackQueueState.Active
+            assertEquals(listOf(0, 2), state.playbackOrder)
+            assertEquals(listOf(1), state.deactivated)
+            assertTrue(state.entries[state.deactivated.single()] is MediaEntry.Video)
+        }
+
+    @Test
+    fun `deactivate current entry advances currentIndex to successor in order`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (0..3).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (0..3).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue()
             q.setQueue(folderUri)
             q.moveTo(1)
@@ -622,11 +695,11 @@ class PlaybackQueueImplTest {
         }
 
     @Test
-    fun `deactivate current track at last active position falls back to predecessor`() =
+    fun `deactivate current entry at last active position falls back to predecessor`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (0..2).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (0..2).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue()
             q.setQueue(folderUri)
             q.moveTo(2)
@@ -640,11 +713,11 @@ class PlaybackQueueImplTest {
         }
 
     @Test
-    fun `deactivate the only remaining active track is a no-op`() =
+    fun `deactivate the only remaining active entry is a no-op`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (0..2).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (0..2).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue()
             q.setQueue(folderUri)
             q.deactivate(0)
@@ -661,8 +734,8 @@ class PlaybackQueueImplTest {
     fun `deactivate appends to the back of the deactivated section`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (0..3).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (0..3).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue()
             q.setQueue(folderUri)
             q.moveTo(3)
@@ -679,8 +752,8 @@ class PlaybackQueueImplTest {
     fun `deactivate with out-of-bounds position is no-op`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (0..2).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (0..2).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue()
             q.setQueue(folderUri)
             val before = q.state.value
@@ -702,11 +775,11 @@ class PlaybackQueueImplTest {
     // ---------------------------------------------------------------------
 
     @Test
-    fun `moveAfterCurrent places track right after current`() =
+    fun `moveAfterCurrent places entry right after current`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (0..4).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (0..4).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue()
             q.setQueue(folderUri)
             q.moveTo(1)
@@ -719,11 +792,11 @@ class PlaybackQueueImplTest {
         }
 
     @Test
-    fun `moveAfterCurrent on the current track itself is no-op`() =
+    fun `moveAfterCurrent on the current entry itself is no-op`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (0..3).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (0..3).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue()
             q.setQueue(folderUri)
             q.moveTo(1)
@@ -738,8 +811,8 @@ class PlaybackQueueImplTest {
     fun `moveAfterCurrent when current is last appends directly after current`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (0..3).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (0..3).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue()
             q.setQueue(folderUri)
             q.moveTo(3)
@@ -763,11 +836,11 @@ class PlaybackQueueImplTest {
     // ---------------------------------------------------------------------
 
     @Test
-    fun `reactivate appends a deactivated track to the end of the active order`() =
+    fun `reactivate appends a deactivated entry to the end of the active order`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (0..3).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (0..3).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue()
             q.setQueue(folderUri)
             q.deactivate(1)
@@ -781,16 +854,16 @@ class PlaybackQueueImplTest {
         }
 
     @Test
-    fun `reactivate removes only the chosen track from the deactivated section`() =
+    fun `reactivate removes only the chosen entry from the deactivated section`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (0..3).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (0..3).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue()
             q.setQueue(folderUri)
             q.moveTo(3)
-            q.deactivate(0) // deactivate track 0
-            q.deactivate(0) // deactivate track 1
+            q.deactivate(0) // deactivate entry 0
+            q.deactivate(0) // deactivate entry 1
 
             q.reactivate(1)
 
@@ -800,11 +873,11 @@ class PlaybackQueueImplTest {
         }
 
     @Test
-    fun `reactivateAt inserts a deactivated track at the given active position`() =
+    fun `reactivateAt inserts a deactivated entry at the given active position`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (0..3).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (0..3).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue()
             q.setQueue(folderUri)
             q.moveTo(3)
@@ -818,11 +891,11 @@ class PlaybackQueueImplTest {
         }
 
     @Test
-    fun `reactivate of a non-deactivated track is no-op`() =
+    fun `reactivate of a non-deactivated entry is no-op`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (0..3).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (0..3).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue()
             q.setQueue(folderUri)
             val before = q.state.value
@@ -847,8 +920,8 @@ class PlaybackQueueImplTest {
     fun `reset restores natural active order, clears deactivated, and disables shuffle`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (0..4).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (0..4).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue(Random(42L))
             q.setQueue(folderUri)
             q.setShuffleEnabled(enabled = true)
@@ -863,11 +936,11 @@ class PlaybackQueueImplTest {
         }
 
     @Test
-    fun `reset keeps the current track`() =
+    fun `reset keeps the current entry`() =
         runTest {
             val folderUri = "content://music/album"
-            val tracks = (0..4).map { track("$folderUri/$it") }
-            audioRepo.emit(listOf(ready(folderUri, tracks)))
+            val entries = (0..4).map { audio("$folderUri/$it") }
+            mediaRepo.emit(listOf(ready(folderUri, entries)))
             val q = queue()
             q.setQueue(folderUri)
             q.moveTo(3)
@@ -886,17 +959,17 @@ class PlaybackQueueImplTest {
     }
 
     // ---------------------------------------------------------------------
-    // Active partition invariant (ADR-008): active ∪ deactivated covers every index once
+    // Active partition invariant (ADR-008/ADR-010): active ∪ deactivated covers every index once
     // ---------------------------------------------------------------------
 
     @Test
     fun `Active accepts a partition of active and deactivated indices`() {
         val folderUri = "content://music/album"
-        val tracks = (0..3).map { track("$folderUri/$it") }
+        val entries = (0..3).map { audio("$folderUri/$it") }
 
         val active =
             PlaybackQueueState.Active(
-                tracks = tracks,
+                entries = entries,
                 currentIndex = 2,
                 playbackOrder = listOf(0, 2, 3),
                 deactivated = listOf(1),
@@ -904,14 +977,14 @@ class PlaybackQueueImplTest {
 
         assertEquals(listOf(0, 2, 3), active.playbackOrder)
         assertEquals(listOf(1), active.deactivated)
-        assertSame(tracks[2], active.current)
+        assertSame(entries[2], active.current)
     }
 
     @Test(expected = IllegalArgumentException::class)
-    fun `Active rejects a track index present in both active and deactivated`() {
-        val tracks = (0..2).map { track("content://music/album/$it") }
+    fun `Active rejects an entry index present in both active and deactivated`() {
+        val entries = (0..2).map { audio("content://music/album/$it") }
         PlaybackQueueState.Active(
-            tracks = tracks,
+            entries = entries,
             currentIndex = 0,
             playbackOrder = listOf(0, 1),
             deactivated = listOf(1, 2),
@@ -919,10 +992,10 @@ class PlaybackQueueImplTest {
     }
 
     @Test(expected = IllegalArgumentException::class)
-    fun `Active rejects when a track index is in neither list`() {
-        val tracks = (0..2).map { track("content://music/album/$it") }
+    fun `Active rejects when an entry index is in neither list`() {
+        val entries = (0..2).map { audio("content://music/album/$it") }
         PlaybackQueueState.Active(
-            tracks = tracks,
+            entries = entries,
             currentIndex = 0,
             playbackOrder = listOf(0),
             deactivated = listOf(1),
@@ -930,10 +1003,10 @@ class PlaybackQueueImplTest {
     }
 
     @Test(expected = IllegalArgumentException::class)
-    fun `Active rejects currentIndex that is not an active track`() {
-        val tracks = (0..2).map { track("content://music/album/$it") }
+    fun `Active rejects currentIndex that is not an active entry`() {
+        val entries = (0..2).map { audio("content://music/album/$it") }
         PlaybackQueueState.Active(
-            tracks = tracks,
+            entries = entries,
             currentIndex = 1,
             playbackOrder = listOf(0, 2),
             deactivated = listOf(1),
@@ -942,9 +1015,9 @@ class PlaybackQueueImplTest {
 
     @Test(expected = IllegalArgumentException::class)
     fun `Active rejects an empty active order`() {
-        val tracks = (0..1).map { track("content://music/album/$it") }
+        val entries = (0..1).map { audio("content://music/album/$it") }
         PlaybackQueueState.Active(
-            tracks = tracks,
+            entries = entries,
             currentIndex = 0,
             playbackOrder = emptyList(),
             deactivated = listOf(0, 1),

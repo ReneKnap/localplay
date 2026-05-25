@@ -49,8 +49,7 @@ fun HomeScreen(
     themeMode: ThemeMode,
     onToggleTheme: () -> Unit,
     onFolderClick: (String) -> Unit,
-    onPreviewTrackClick: (folderUri: String, trackUri: String) -> Unit,
-    onVideoClick: (folderUri: String, videoUri: String) -> Unit,
+    onEntryClick: (folderUri: String, entryUri: String) -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
     supportHintViewModel: SupportHintViewModel = hiltViewModel(),
 ) {
@@ -73,8 +72,7 @@ fun HomeScreen(
         onPickFolder = { pickerLauncher.launch(null) },
         onRemoveFolder = viewModel::removeFolder,
         onFolderClick = onFolderClick,
-        onPreviewTrackClick = onPreviewTrackClick,
-        onVideoClick = onVideoClick,
+        onEntryClick = onEntryClick,
     )
 }
 
@@ -89,8 +87,7 @@ private fun HomeContent(
     onPickFolder: () -> Unit,
     onRemoveFolder: (String) -> Unit,
     onFolderClick: (String) -> Unit,
-    onPreviewTrackClick: (folderUri: String, trackUri: String) -> Unit,
-    onVideoClick: (folderUri: String, videoUri: String) -> Unit,
+    onEntryClick: (folderUri: String, entryUri: String) -> Unit,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     var showSupportDialog by remember { mutableStateOf(false) }
@@ -147,8 +144,7 @@ private fun HomeContent(
                         folders = uiState.items,
                         onRemove = onRemoveFolder,
                         onFolderClick = onFolderClick,
-                        onPreviewTrackClick = onPreviewTrackClick,
-                        onVideoClick = onVideoClick,
+                        onEntryClick = onEntryClick,
                     )
             }
         }
@@ -238,8 +234,7 @@ private fun FolderList(
     folders: List<FolderMediaUi>,
     onRemove: (String) -> Unit,
     onFolderClick: (String) -> Unit,
-    onPreviewTrackClick: (folderUri: String, trackUri: String) -> Unit,
-    onVideoClick: (folderUri: String, videoUri: String) -> Unit,
+    onEntryClick: (folderUri: String, entryUri: String) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -250,8 +245,7 @@ private fun FolderList(
                 folderMedia = folderMedia,
                 onRemove = { onRemove(folderMedia.folder.uri) },
                 onFolderClick = { onFolderClick(folderMedia.folder.uri) },
-                onPreviewTrackClick = { trackUri -> onPreviewTrackClick(folderMedia.folder.uri, trackUri) },
-                onVideoClick = { videoUri -> onVideoClick(folderMedia.folder.uri, videoUri) },
+                onEntryClick = { entryUri -> onEntryClick(folderMedia.folder.uri, entryUri) },
             )
         }
     }

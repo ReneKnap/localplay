@@ -3,15 +3,12 @@ package io.github.reneknap.mediacenter.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import io.github.reneknap.mediacenter.data.audio.AudioRepository
-import io.github.reneknap.mediacenter.data.audio.FolderTracks
 import io.github.reneknap.mediacenter.data.folder.FolderRepository
-import io.github.reneknap.mediacenter.data.video.FolderVideos
-import io.github.reneknap.mediacenter.data.video.VideoRepository
-import io.github.reneknap.mediacenter.data.video.VideoScanState
+import io.github.reneknap.mediacenter.data.media.FolderMediaContent
+import io.github.reneknap.mediacenter.data.media.MediaRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -20,21 +17,17 @@ import javax.inject.Inject
 class HomeViewModel
     @Inject
     constructor(
-        private val audioRepository: AudioRepository,
-        private val videoRepository: VideoRepository,
+        private val mediaRepository: MediaRepository,
         private val folderRepository: FolderRepository,
     ) : ViewModel() {
         val uiState: StateFlow<HomeUiState> =
-            combine(
-                audioRepository.folders,
-                videoRepository.folders,
-            ) { audioFolders, videoFolders ->
-                buildState(audioFolders, videoFolders)
-            }.stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
-                initialValue = HomeUiState.Loading,
-            )
+            mediaRepository.folders
+                .map(::buildState)
+                .stateIn(
+                    scope = viewModelScope,
+                    started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
+                    initialValue = HomeUiState.Loading,
+                )
 
         fun addFolder(uri: String) {
             viewModelScope.launch {
@@ -48,22 +41,9 @@ class HomeViewModel
             }
         }
 
-        private fun buildState(
-            audioFolders: List<FolderTracks>,
-            videoFolders: List<FolderVideos>,
-        ): HomeUiState {
-            if (audioFolders.isEmpty()) return HomeUiState.Empty
-
-            val videoByUri = videoFolders.associateBy { it.folder.uri }
-            val items =
-                audioFolders.map { audioFolder ->
-                    FolderMediaUi(
-                        folder = audioFolder.folder,
-                        audio = audioFolder.scan,
-                        video = videoByUri[audioFolder.folder.uri]?.scan ?: VideoScanState.Scanning,
-                    )
-                }
-            return HomeUiState.Folders(items)
+        private fun buildState(folders: List<FolderMediaContent>): HomeUiState {
+            if (folders.isEmpty()) return HomeUiState.Empty
+            return HomeUiState.Folders(folders.map { FolderMediaUi(it.folder, it.scan) })
         }
 
         private companion object {

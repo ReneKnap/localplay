@@ -30,7 +30,6 @@
     <string name="home_folder_video_count">%1$d videos</string>
     <string name="home_folder_video_count_one">1 video</string>
     <string name="home_folder_media_summary">%1$s · %2$s</string>
-    <string name="home_folder_videos_section">Videos</string>
     <string name="home_video_resolution">%1$d×%2$d</string>
     <string name="home_track_unknown_duration">—</string>
 
@@ -59,10 +58,6 @@
     <string name="player_reset_queue">Reset queue</string>
     <string name="player_deactivated_section">Removed — tap to re-add</string>
     <string name="player_reactivate">Re-add to queue</string>
-    <string name="player_empty_folder_has_videos_message">This folder has no audio, but it does have videos — open them from the folder list.</string>
-    <string name="video_player_back">Back</string>
-    <string name="video_player_unavailable_title">Folder not available</string>
-    <string name="video_player_unavailable_message">This folder was removed or is no longer accessible.</string>
-    <string name="video_player_no_videos_title">No videos here</string>
-    <string name="video_player_no_videos_message">MediaCenter didn\'t find any playable video in this folder.</string>
+    <string name="player_enter_fullscreen">Enter fullscreen</string>
+    <string name="player_exit_fullscreen">Exit fullscreen</string>
 </resources>

@@ -30,8 +30,10 @@ class ArtworkReaderImpl
             cache.get(cacheKey)?.let { return it }
             if (uri in withoutArtwork) return null
             return withContext(Dispatchers.IO) {
-                val bytes = readEmbeddedPicture(uri)
-                val bitmap = bytes?.let { decodeDownsampled(it, targetSizePx) }
+                val embedded = readEmbeddedPicture(uri)?.let { decodeDownsampled(it, targetSizePx) }
+                // Fall back to a representative video frame: getFrameAtTime returns null for audio, so a
+                // single uri-based path serves both kinds without the caller knowing the media kind.
+                val bitmap = embedded ?: readVideoFrame(uri, targetSizePx)
                 if (bitmap == null) {
                     withoutArtwork.add(uri)
                 } else {
@@ -39,6 +41,36 @@ class ArtworkReaderImpl
                 }
                 bitmap
             }
+        }
+
+        private fun readVideoFrame(
+            uri: String,
+            targetSizePx: Int,
+        ): Bitmap? {
+            val retriever = MediaMetadataRetriever()
+            return try {
+                retriever.setDataSource(context, uri.toUri())
+                val frame = retriever.frameAtTime ?: return null
+                scaleToTarget(frame, targetSizePx)
+            } catch (_: RuntimeException) {
+                null
+            } finally {
+                retriever.release()
+            }
+        }
+
+        private fun scaleToTarget(
+            bitmap: Bitmap,
+            targetSizePx: Int,
+        ): Bitmap {
+            val minSide = minOf(bitmap.width, bitmap.height)
+            if (minSide <= 0 || minSide <= targetSizePx) return bitmap
+            val scale = targetSizePx.toFloat() / minSide
+            val width = (bitmap.width * scale).toInt().coerceAtLeast(1)
+            val height = (bitmap.height * scale).toInt().coerceAtLeast(1)
+            val scaled = Bitmap.createScaledBitmap(bitmap, width, height, true)
+            if (scaled != bitmap) bitmap.recycle()
+            return scaled
         }
 
         private fun readEmbeddedPicture(uri: String): ByteArray? {

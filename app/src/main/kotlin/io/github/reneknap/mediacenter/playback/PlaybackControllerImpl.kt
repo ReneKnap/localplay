@@ -38,6 +38,8 @@ class PlaybackControllerImpl
                 )
             }.stateIn(scope, SharingStarted.Eagerly, PlayerStatus())
 
+        override val player = engine.player
+
         init {
             scope.launch {
                 engine.currentMediaItemIndex.collect { playerPos ->
@@ -50,7 +52,7 @@ class PlaybackControllerImpl
             val current = queue.state.value
             val isSameFolder =
                 current is PlaybackQueueState.Active &&
-                    current.tracks.firstOrNull()?.folderUri == folderUri
+                    current.entries.firstOrNull()?.folderUri == folderUri
             if (isSameFolder) return
             queue.setQueue(folderUri)
             val persistedShuffle = playbackPreferences.shuffleEnabled.first()
@@ -63,7 +65,7 @@ class PlaybackControllerImpl
 
         override fun playAtIndex(index: Int) {
             val state = queue.state.value
-            if (state !is PlaybackQueueState.Active || index !in state.tracks.indices) return
+            if (state !is PlaybackQueueState.Active || index !in state.entries.indices) return
             val playerPos = state.playbackOrder.indexOf(index)
             engine.seekToMediaItem(playerPos)
             engine.setPlayWhenReady(true)
@@ -142,7 +144,7 @@ class PlaybackControllerImpl
             queue.reactivate(trackIndex)
             val appendedPosition =
                 (queue.state.value as? PlaybackQueueState.Active)?.playbackOrder?.indexOf(trackIndex) ?: return
-            engine.addMediaItem(appendedPosition, state.tracks[trackIndex])
+            engine.addMediaItem(appendedPosition, state.entries[trackIndex])
         }
 
         override fun reactivateTrackAt(
@@ -154,7 +156,7 @@ class PlaybackControllerImpl
             queue.reactivateAt(trackIndex, position)
             val insertedPosition =
                 (queue.state.value as? PlaybackQueueState.Active)?.playbackOrder?.indexOf(trackIndex) ?: return
-            engine.addMediaItem(insertedPosition, state.tracks[trackIndex])
+            engine.addMediaItem(insertedPosition, state.entries[trackIndex])
         }
 
         override fun resetQueue() {
@@ -178,5 +180,5 @@ class PlaybackControllerImpl
             }
         }
 
-        private fun PlaybackQueueState.Active.toOrderedItems() = playbackOrder.map { tracks[it] }
+        private fun PlaybackQueueState.Active.toOrderedItems() = playbackOrder.map { entries[it] }
     }

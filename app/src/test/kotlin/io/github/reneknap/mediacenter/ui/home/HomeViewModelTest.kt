@@ -3,15 +3,13 @@ package io.github.reneknap.mediacenter.ui.home
 import app.cash.turbine.test
 import io.github.reneknap.mediacenter.MainDispatcherRule
 import io.github.reneknap.mediacenter.data.audio.AudioTrack
-import io.github.reneknap.mediacenter.data.audio.FakeAudioRepository
-import io.github.reneknap.mediacenter.data.audio.FolderScanState
-import io.github.reneknap.mediacenter.data.audio.FolderTracks
 import io.github.reneknap.mediacenter.data.folder.FakeFolderRepository
 import io.github.reneknap.mediacenter.data.folder.FolderEntry
-import io.github.reneknap.mediacenter.data.video.FakeVideoRepository
-import io.github.reneknap.mediacenter.data.video.FolderVideos
+import io.github.reneknap.mediacenter.data.media.FakeMediaRepository
+import io.github.reneknap.mediacenter.data.media.FolderMediaContent
+import io.github.reneknap.mediacenter.data.media.MediaContentScanState
+import io.github.reneknap.mediacenter.data.media.MediaEntry
 import io.github.reneknap.mediacenter.data.video.VideoItem
-import io.github.reneknap.mediacenter.data.video.VideoScanState
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -25,8 +23,7 @@ class HomeViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private lateinit var audioRepository: FakeAudioRepository
-    private lateinit var videoRepository: FakeVideoRepository
+    private lateinit var mediaRepository: FakeMediaRepository
     private lateinit var folderRepository: FakeFolderRepository
     private lateinit var viewModel: HomeViewModel
 
@@ -34,14 +31,42 @@ class HomeViewModelTest {
 
     @Before
     fun setUp() {
-        audioRepository = FakeAudioRepository()
-        videoRepository = FakeVideoRepository()
+        mediaRepository = FakeMediaRepository()
         folderRepository = FakeFolderRepository()
-        viewModel = HomeViewModel(audioRepository, videoRepository, folderRepository)
+        viewModel = HomeViewModel(mediaRepository, folderRepository)
     }
 
+    private fun audio(uri: String): MediaEntry =
+        MediaEntry.Audio(
+            AudioTrack(
+                uri = uri,
+                folderUri = uri.substringBeforeLast('/'),
+                displayName = uri.substringAfterLast('/'),
+                mimeType = "audio/mpeg",
+                sizeBytes = 0L,
+                title = "Song",
+                artist = null,
+                album = null,
+                durationMs = 0L,
+            ),
+        )
+
+    private fun video(uri: String): MediaEntry =
+        MediaEntry.Video(
+            VideoItem(
+                uri = uri,
+                folderUri = uri.substringBeforeLast('/'),
+                displayName = uri.substringAfterLast('/'),
+                mimeType = "video/mp4",
+                sizeBytes = 0L,
+                durationMs = 1_000L,
+                width = 1920,
+                height = 1080,
+            ),
+        )
+
     @Test
-    fun `uiState reflects Empty when audio repository has no folders`() =
+    fun `uiState reflects Empty when repository has no folders`() =
         runTest {
             viewModel.uiState.test {
                 var state: HomeUiState = awaitItem()
@@ -54,9 +79,9 @@ class HomeViewModelTest {
         }
 
     @Test
-    fun `uiState reflects Folders when audio repository emits entries`() =
+    fun `uiState reflects Folders when repository emits entries`() =
         runTest {
-            audioRepository.emit(listOf(FolderTracks(entry, FolderScanState.Scanning)))
+            mediaRepository.emit(listOf(FolderMediaContent(entry, MediaContentScanState.Scanning)))
 
             viewModel.uiState.test {
                 var state: HomeUiState = awaitItem()
@@ -65,50 +90,26 @@ class HomeViewModelTest {
                 }
                 assertEquals(1, state.items.size)
                 assertEquals(entry, state.items[0].folder)
-                assertEquals(FolderScanState.Scanning, state.items[0].audio)
+                assertEquals(MediaContentScanState.Scanning, state.items[0].content)
                 cancelAndIgnoreRemainingEvents()
             }
         }
 
     @Test
-    fun `uiState combines audio and video scan state per folder`() =
+    fun `uiState exposes one combined entry list per folder`() =
         runTest {
-            val track =
-                AudioTrack(
-                    uri = "${entry.uri}/song.mp3",
-                    folderUri = entry.uri,
-                    displayName = "song.mp3",
-                    mimeType = "audio/mpeg",
-                    sizeBytes = 0L,
-                    title = "Song",
-                    artist = null,
-                    album = null,
-                    durationMs = 0L,
-                )
-            val video =
-                VideoItem(
-                    uri = "${entry.uri}/clip.mp4",
-                    folderUri = entry.uri,
-                    displayName = "clip.mp4",
-                    mimeType = "video/mp4",
-                    sizeBytes = 0L,
-                    durationMs = 1_000L,
-                    width = 1920,
-                    height = 1080,
-                )
-            audioRepository.emit(listOf(FolderTracks(entry, FolderScanState.Ready(listOf(track)))))
-            videoRepository.emit(listOf(FolderVideos(entry, VideoScanState.Ready(listOf(video)))))
+            val entries = listOf(audio("${entry.uri}/song.mp3"), video("${entry.uri}/clip.mp4"))
+            mediaRepository.emit(listOf(FolderMediaContent(entry, MediaContentScanState.Ready(entries))))
 
             viewModel.uiState.test {
                 var state: HomeUiState = awaitItem()
-                while (state !is HomeUiState.Folders || state.items[0].video !is VideoScanState.Ready) {
+                while (state !is HomeUiState.Folders || state.items[0].content !is MediaContentScanState.Ready) {
                     state = awaitItem()
                 }
-                val item = state.items[0]
-                assertTrue(item.audio is FolderScanState.Ready)
-                assertTrue(item.video is VideoScanState.Ready)
-                assertEquals(listOf("song.mp3"), (item.audio as FolderScanState.Ready).tracks.map { it.displayName })
-                assertEquals(listOf("clip.mp4"), (item.video as VideoScanState.Ready).videos.map { it.displayName })
+                val content = state.items[0].content as MediaContentScanState.Ready
+                assertEquals(listOf("song.mp3", "clip.mp4"), content.entries.map { it.displayName })
+                assertTrue(content.entries[0] is MediaEntry.Audio)
+                assertTrue(content.entries[1] is MediaEntry.Video)
                 cancelAndIgnoreRemainingEvents()
             }
         }

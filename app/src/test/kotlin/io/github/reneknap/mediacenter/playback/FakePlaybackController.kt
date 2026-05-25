@@ -1,5 +1,6 @@
 package io.github.reneknap.mediacenter.playback
 
+import androidx.media3.common.Player
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -7,6 +8,8 @@ import kotlinx.coroutines.flow.asStateFlow
 class FakePlaybackController : PlaybackController {
     private val _status = MutableStateFlow(PlayerStatus())
     override val status: StateFlow<PlayerStatus> = _status.asStateFlow()
+
+    override val player: StateFlow<Player?> = MutableStateFlow<Player?>(null).asStateFlow()
 
     val preparedFolders: MutableList<String> = mutableListOf()
     val playedIndexes: MutableList<Int> = mutableListOf()

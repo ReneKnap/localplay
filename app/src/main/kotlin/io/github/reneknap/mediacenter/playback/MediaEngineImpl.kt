@@ -10,7 +10,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import dagger.hilt.android.qualifiers.ApplicationContext
-import io.github.reneknap.mediacenter.data.audio.AudioTrack
+import io.github.reneknap.mediacenter.data.media.MediaEntry
 import io.github.reneknap.mediacenter.di.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -46,6 +46,9 @@ class MediaEngineImpl
 
         private val _playWhenReady = MutableStateFlow(false)
         override val playWhenReady: StateFlow<Boolean> = _playWhenReady.asStateFlow()
+
+        private val _player = MutableStateFlow<Player?>(null)
+        override val player: StateFlow<Player?> = _player.asStateFlow()
 
         private var controller: MediaController? = null
         private val pendingCommands = mutableListOf<(MediaController) -> Unit>()
@@ -97,7 +100,7 @@ class MediaEngineImpl
         }
 
         override fun setQueue(
-            items: List<AudioTrack>,
+            items: List<MediaEntry>,
             startIndex: Int,
             playWhenReady: Boolean,
             startPositionMs: Long?,
@@ -145,7 +148,7 @@ class MediaEngineImpl
 
         override fun addMediaItem(
             index: Int,
-            item: AudioTrack,
+            item: MediaEntry,
         ) {
             withController { c ->
                 c.addMediaItem(index, item.toMediaItem())
@@ -175,6 +178,7 @@ class MediaEngineImpl
                 val connected = future.get()
                 connected.addListener(playerListener)
                 controller = connected
+                _player.value = connected
                 _currentMediaItemIndex.value = connected.currentMediaItemIndex
                 _playWhenReady.value = connected.playWhenReady
                 pendingCommands.forEach { it(connected) }
@@ -205,13 +209,23 @@ class MediaEngineImpl
         }
     }
 
-private fun AudioTrack.toMediaItem(): MediaItem {
+private fun MediaEntry.toMediaItem(): MediaItem {
     val metadata =
-        MediaMetadata.Builder()
-            .setTitle(title)
-            .setArtist(artist)
-            .setAlbumTitle(album)
-            .build()
+        when (this) {
+            is MediaEntry.Audio ->
+                MediaMetadata.Builder()
+                    .setTitle(track.title)
+                    .setArtist(track.artist)
+                    .setAlbumTitle(track.album)
+                    .build()
+            is MediaEntry.Video ->
+                // No artworkUri: the SAF content uri is only readable by this app, so handing it to the
+                // system media controls (SystemUI) crashes them with a SecurityException. In-app rows/cover
+                // still show a frame via ArtworkReader; a notification poster would need artworkData bytes.
+                MediaMetadata.Builder()
+                    .setTitle(video.displayName)
+                    .build()
+        }
     return MediaItem.Builder()
         .setMediaId(uri)
         .setUri(uri.toUri())
