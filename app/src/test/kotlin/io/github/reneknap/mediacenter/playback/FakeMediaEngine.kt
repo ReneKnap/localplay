@@ -25,6 +25,16 @@ class FakeMediaEngine : MediaEngine {
     private val _playWhenReady = MutableStateFlow(false)
     override val playWhenReady: StateFlow<Boolean> = _playWhenReady.asStateFlow()
 
+    private val _textTracks = MutableStateFlow<List<SubtitleTrack>>(emptyList())
+    override val textTracks: StateFlow<List<SubtitleTrack>> = _textTracks.asStateFlow()
+
+    private val _activeTextTrackId = MutableStateFlow<String?>(null)
+    override val activeTextTrackId: StateFlow<String?> = _activeTextTrackId.asStateFlow()
+
+    val selectedTextTrackIds: MutableList<String> = mutableListOf()
+    var disableSubtitlesCount: Int = 0
+        private set
+
     var items: List<MediaEntry> = emptyList()
         private set
 
@@ -145,6 +155,20 @@ class FakeMediaEngine : MediaEngine {
     override fun setPlayWhenReady(playWhenReady: Boolean) {
         _playWhenReady.value = playWhenReady
         _isPlaying.value = playWhenReady
+    }
+
+    override fun selectTextTrack(id: String) {
+        selectedTextTrackIds.add(id)
+        _activeTextTrackId.value = id
+    }
+
+    override fun disableSubtitles() {
+        disableSubtitlesCount += 1
+        _activeTextTrackId.value = null
+    }
+
+    fun emitTextTracks(tracks: List<SubtitleTrack>) {
+        _textTracks.value = tracks
     }
 
     fun simulateAutoAdvance() {

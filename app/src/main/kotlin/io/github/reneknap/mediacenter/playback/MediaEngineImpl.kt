@@ -4,13 +4,18 @@ import android.content.ComponentName
 import android.content.Context
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
+import androidx.media3.common.C
+import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.reneknap.mediacenter.data.media.MediaEntry
+import io.github.reneknap.mediacenter.data.video.ExternalSubtitle
 import io.github.reneknap.mediacenter.di.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -50,8 +55,17 @@ class MediaEngineImpl
         private val _player = MutableStateFlow<Player?>(null)
         override val player: StateFlow<Player?> = _player.asStateFlow()
 
+        private val _textTracks = MutableStateFlow<List<SubtitleTrack>>(emptyList())
+        override val textTracks: StateFlow<List<SubtitleTrack>> = _textTracks.asStateFlow()
+
+        private val _activeTextTrackId = MutableStateFlow<String?>(null)
+        override val activeTextTrackId: StateFlow<String?> = _activeTextTrackId.asStateFlow()
+
         private var controller: MediaController? = null
         private val pendingCommands = mutableListOf<(MediaController) -> Unit>()
+
+        // Maps a UI track id to the override that selects it; rebuilt on every onTracksChanged.
+        private var textOverrides: Map<String, TrackSelectionOverride> = emptyMap()
 
         private val playerListener =
             object : Player.Listener {
@@ -85,6 +99,10 @@ class MediaEngineImpl
                     reason: Int,
                 ) {
                     _playWhenReady.value = playWhenReady
+                }
+
+                override fun onTracksChanged(tracks: Tracks) {
+                    mapTextTracks(tracks)
                 }
             }
 
@@ -171,6 +189,50 @@ class MediaEngineImpl
             }
         }
 
+        override fun selectTextTrack(id: String) {
+            val override = textOverrides[id] ?: return
+            withController { c ->
+                c.trackSelectionParameters =
+                    c.trackSelectionParameters
+                        .buildUpon()
+                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                        .setOverrideForType(override)
+                        .build()
+            }
+        }
+
+        override fun disableSubtitles() {
+            withController { c ->
+                c.trackSelectionParameters =
+                    c.trackSelectionParameters
+                        .buildUpon()
+                        .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                        .build()
+            }
+        }
+
+        private fun mapTextTracks(tracks: Tracks) {
+            val overrides = mutableMapOf<String, TrackSelectionOverride>()
+            val list = mutableListOf<SubtitleTrack>()
+            var active: String? = null
+            tracks.groups
+                .filter { it.type == C.TRACK_TYPE_TEXT }
+                .forEachIndexed { groupIndex, group ->
+                    for (trackIndex in 0..<group.length) {
+                        if (!group.isTrackSupported(trackIndex)) continue
+                        val format = group.getTrackFormat(trackIndex)
+                        val id = "g${groupIndex}t$trackIndex"
+                        overrides[id] = TrackSelectionOverride(group.mediaTrackGroup, trackIndex)
+                        list += SubtitleTrack(id = id, label = labelFor(format), language = format.language)
+                        if (group.isTrackSelected(trackIndex)) active = id
+                    }
+                }
+            textOverrides = overrides
+            _textTracks.value = list
+            _activeTextTrackId.value = active
+        }
+
         private fun connectController() {
             val token = SessionToken(context, ComponentName(context, MediaCenterPlaybackService::class.java))
             val future = MediaController.Builder(context, token).buildAsync()
@@ -181,6 +243,14 @@ class MediaEngineImpl
                 _player.value = connected
                 _currentMediaItemIndex.value = connected.currentMediaItemIndex
                 _playWhenReady.value = connected.playWhenReady
+                // Subtitles strictly off by default: disable text selection until the user opts in,
+                // so forced/default-flagged tracks never appear on their own.
+                connected.trackSelectionParameters =
+                    connected.trackSelectionParameters
+                        .buildUpon()
+                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                        .build()
+                mapTextTracks(connected.currentTracks)
                 pendingCommands.forEach { it(connected) }
                 pendingCommands.clear()
             }, ContextCompat.getMainExecutor(context))
@@ -209,6 +279,8 @@ class MediaEngineImpl
         }
     }
 
+private fun labelFor(format: Format): String = format.label ?: format.language ?: "Subtitle"
+
 private fun MediaEntry.toMediaItem(): MediaItem {
     val metadata =
         when (this) {
@@ -226,9 +298,22 @@ private fun MediaEntry.toMediaItem(): MediaItem {
                     .setTitle(video.displayName)
                     .build()
         }
-    return MediaItem.Builder()
-        .setMediaId(uri)
-        .setUri(uri.toUri())
-        .setMediaMetadata(metadata)
-        .build()
+    val builder =
+        MediaItem.Builder()
+            .setMediaId(uri)
+            .setUri(uri.toUri())
+            .setMediaMetadata(metadata)
+    if (this is MediaEntry.Video && video.externalSubtitles.isNotEmpty()) {
+        builder.setSubtitleConfigurations(video.externalSubtitles.map { it.toSubtitleConfiguration() })
+    }
+    return builder.build()
 }
+
+// No selection flags: external tracks stay off until the user picks one (subtitles strictly off).
+private fun ExternalSubtitle.toSubtitleConfiguration(): MediaItem.SubtitleConfiguration =
+    MediaItem.SubtitleConfiguration
+        .Builder(uri.toUri())
+        .setMimeType(mimeType)
+        .setLanguage(language)
+        .setLabel(label)
+        .build()

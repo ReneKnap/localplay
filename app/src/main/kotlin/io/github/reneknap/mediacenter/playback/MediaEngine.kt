@@ -18,6 +18,12 @@ interface MediaEngine {
 
     val playWhenReady: StateFlow<Boolean>
 
+    /** Selectable subtitle/text tracks of the current item (embedded + attached external); empty for none. */
+    val textTracks: StateFlow<List<SubtitleTrack>>
+
+    /** The currently shown subtitle track id, or null when subtitles are off (the default). */
+    val activeTextTrackId: StateFlow<String?>
+
     fun setQueue(
         items: List<MediaEntry>,
         startIndex: Int,
@@ -46,4 +52,10 @@ interface MediaEngine {
     fun seekTo(positionMs: Long)
 
     fun setPlayWhenReady(playWhenReady: Boolean)
+
+    /** Show the subtitle track with [id] (from [textTracks]); no-op if it is no longer present. */
+    fun selectTextTrack(id: String)
+
+    /** Turn subtitles off for the current and subsequent items. */
+    fun disableSubtitles()
 }

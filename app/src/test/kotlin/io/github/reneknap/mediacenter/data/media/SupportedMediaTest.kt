@@ -1,7 +1,10 @@
 package io.github.reneknap.mediacenter.data.media
 
+import androidx.media3.common.MimeTypes
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SupportedMediaTest {
@@ -47,5 +50,47 @@ class SupportedMediaTest {
     @Test
     fun `dotfile without real extension classifies as null`() {
         assertNull(mediaKindFor(".gitignore"))
+    }
+
+    // --- Subtitles (ADR-011) ---------------------------------------------
+
+    @Test
+    fun `srt and vtt are recognized as subtitle files`() {
+        assertTrue(isSubtitleFile("film.srt"))
+        assertTrue(isSubtitleFile("film.vtt"))
+    }
+
+    @Test
+    fun `subtitle recognition is case-insensitive`() {
+        assertTrue(isSubtitleFile("Film.SRT"))
+        assertTrue(isSubtitleFile("Film.Vtt"))
+    }
+
+    @Test
+    fun `non-subtitle files are not recognized as subtitles`() {
+        assertFalse(isSubtitleFile("film.mp4"))
+        assertFalse(isSubtitleFile("song.mp3"))
+        assertFalse(isSubtitleFile("notes.txt"))
+        assertFalse(isSubtitleFile("noextension"))
+    }
+
+    @Test
+    fun `subtitle MIME maps srt to subrip and vtt to webvtt`() {
+        assertEquals(MimeTypes.APPLICATION_SUBRIP, subtitleMimeFor("film.srt"))
+        assertEquals(MimeTypes.TEXT_VTT, subtitleMimeFor("film.vtt"))
+        assertEquals(MimeTypes.APPLICATION_SUBRIP, subtitleMimeFor("Film.SRT"))
+    }
+
+    @Test
+    fun `subtitle MIME is null for non-subtitle files`() {
+        assertNull(subtitleMimeFor("film.mp4"))
+        assertNull(subtitleMimeFor("notes.txt"))
+    }
+
+    @Test
+    fun `subtitle extensions are never classified as playable media`() {
+        SUPPORTED_SUBTITLE_EXTENSIONS.forEach { ext ->
+            assertNull("$ext must not be AUDIO/VIDEO", mediaKindFor("film.$ext"))
+        }
     }
 }

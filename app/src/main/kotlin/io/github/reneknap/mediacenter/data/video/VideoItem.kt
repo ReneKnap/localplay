@@ -9,4 +9,5 @@ data class VideoItem(
     val durationMs: Long,
     val width: Int,
     val height: Int,
+    val externalSubtitles: List<ExternalSubtitle> = emptyList(),
 )

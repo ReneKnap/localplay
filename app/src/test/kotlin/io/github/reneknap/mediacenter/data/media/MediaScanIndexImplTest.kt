@@ -45,12 +45,18 @@ class MediaScanIndexImplTest {
     private fun audioRaw(
         folderUri: String,
         name: String,
-    ) = RawMediaFile("$folderUri/$name", name, "audio/mpeg", 0L, MediaKind.AUDIO)
+    ) = RawMediaFile("$folderUri/$name", name, "audio/mpeg", 0L, MediaKind.AUDIO, parentKey = folderUri)
 
     private fun videoRaw(
         folderUri: String,
         name: String,
-    ) = RawMediaFile("$folderUri/$name", name, "video/mp4", 0L, MediaKind.VIDEO)
+    ) = RawMediaFile("$folderUri/$name", name, "video/mp4", 0L, MediaKind.VIDEO, parentKey = folderUri)
+
+    private fun subRaw(
+        folderUri: String,
+        name: String,
+        parentKey: String = folderUri,
+    ) = RawSubtitleFile("$parentKey/$name", name, parentKey)
 
     @Test
     fun `folders flow emits empty list when no folders picked`() =
@@ -337,6 +343,72 @@ class MediaScanIndexImplTest {
             runCurrent()
 
             assertEquals(1, scanner.scannedUris.count { it == folderUri })
+        }
+
+    @Test
+    fun `video gets its matched external subtitles and excludes foreign sidecars`() =
+        runTest {
+            val folderUri = "content://media/subs"
+            folderRepo.emit(listOf(FolderEntry(folderUri, "Subs", isReachable = true)))
+            val video = videoRaw(folderUri, "film.mp4")
+            videoMetadataReader.setMetadata(video.uri, VideoMetadata(1L, 640, 480))
+            scanner.setResult(
+                folderUri,
+                listOf(video),
+                subtitles = listOf(subRaw(folderUri, "film.de.srt"), subRaw(folderUri, "other.srt")),
+            )
+
+            val index = index()
+
+            index.folders.test {
+                awaitItem() // Scanning
+                val ready = awaitItem()[0].scan as MediaScanState.Ready
+                val subs = ready.video.single().externalSubtitles
+                assertEquals(1, subs.size)
+                assertEquals("de", subs[0].language)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `subtitle in a different directory is not matched`() =
+        runTest {
+            val folderUri = "content://media/dirs"
+            folderRepo.emit(listOf(FolderEntry(folderUri, "Dirs", isReachable = true)))
+            val video = videoRaw(folderUri, "film.mp4")
+            videoMetadataReader.setMetadata(video.uri, VideoMetadata(1L, 640, 480))
+            scanner.setResult(
+                folderUri,
+                listOf(video),
+                subtitles = listOf(subRaw(folderUri, "film.srt", parentKey = "$folderUri/nested")),
+            )
+
+            val index = index()
+
+            index.folders.test {
+                awaitItem() // Scanning
+                val ready = awaitItem()[0].scan as MediaScanState.Ready
+                assertTrue(ready.video.single().externalSubtitles.isEmpty())
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `subtitle files are not listed as media entries`() =
+        runTest {
+            val folderUri = "content://media/onlysubs"
+            folderRepo.emit(listOf(FolderEntry(folderUri, "OnlySubs", isReachable = true)))
+            scanner.setResult(folderUri, emptyList(), subtitles = listOf(subRaw(folderUri, "loose.srt")))
+
+            val index = index()
+
+            index.folders.test {
+                awaitItem() // Scanning
+                val ready = awaitItem()[0].scan as MediaScanState.Ready
+                assertTrue(ready.audio.isEmpty())
+                assertTrue(ready.video.isEmpty())
+                cancelAndIgnoreRemainingEvents()
+            }
         }
 
     @Test

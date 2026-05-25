@@ -6,4 +6,6 @@ data class RawMediaFile(
     val mimeType: String?,
     val sizeBytes: Long,
     val kind: MediaKind,
+    // The containing directory's identity, so subtitle sidecars can be matched to siblings (ADR-011).
+    val parentKey: String,
 )

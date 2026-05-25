@@ -74,16 +74,16 @@ class MediaScanIndexImpl
 
         private suspend fun runScan(folderUri: String) {
             try {
-                val rawFiles = scanner.scan(folderUri)
+                val result = scanner.scan(folderUri)
                 val audio =
-                    rawFiles
+                    result.media
                         .filter { it.kind == MediaKind.AUDIO }
                         .map { toTrack(it, folderUri) }
                         .sortedBy { it.displayName.lowercase() }
                 val video =
-                    rawFiles
+                    result.media
                         .filter { it.kind == MediaKind.VIDEO }
-                        .map { toVideo(it, folderUri) }
+                        .map { toVideo(it, folderUri, result.subtitles) }
                         .sortedBy { it.displayName.lowercase() }
                 cache.update { it + (folderUri to MediaScanState.Ready(audio, video)) }
             } catch (_: Exception) {
@@ -117,6 +117,7 @@ class MediaScanIndexImpl
         private suspend fun toVideo(
             file: RawMediaFile,
             folderUri: String,
+            subtitles: List<RawSubtitleFile>,
         ): VideoItem {
             // List every file with a video extension. Metadata is best-effort enrichment: some
             // containers (older AVI codecs) cannot be parsed by MediaMetadataRetriever, so a null
@@ -131,6 +132,7 @@ class MediaScanIndexImpl
                 durationMs = metadata?.durationMs ?: 0L,
                 width = metadata?.width ?: 0,
                 height = metadata?.height ?: 0,
+                externalSubtitles = matchSubtitles(file.displayName, file.parentKey, subtitles),
             )
         }
     }
