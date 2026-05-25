@@ -1,0 +1,21 @@
+MediaCenter spielt die Musik- und Videodateien ab, die bereits auf deinem Gerät liegen — ohne Werbung, ohne Kosten, ohne Anmeldung und ohne Ablenkung.
+
+Wähle einen Ordner, und MediaCenter zeigt seinen Inhalt. Antippen und abspielen. Musik läuft im Hintergrund weiter — mit Play, Pause, Vor und Zurück direkt in der Benachrichtigung und auf dem Sperrbildschirm. Videos laufen im Vollbild und spielen als Audio weiter, wenn du die App verlässt.
+
+FUNKTIONEN
+• Lokale Audio- und Videodateien aus jedem gewählten Ordner abspielen
+• Wiedergabe der Reihe nach oder zufällig
+• Hintergrundwiedergabe mit Steuerung in Benachrichtigung und Sperrbildschirm
+• Unterstützung für Headset- und Bluetooth-Tasten
+• Klare, fokussierte Material-3-Oberfläche — hell und dunkel
+• Cover für Musik und Vorschaubild für Video
+• Bearbeitbare Wiedergabeliste: umsortieren, entfernen, zurücksetzen
+
+OHNE SCHNICKSCHNACK
+• Niemals Werbung
+• Keine Gebühren und keine In-App-Käufe
+• Kein Konto und kein Tracking
+• Keine Internet-Berechtigung — die Wiedergabe ist vollständig lokal
+• Kostenlos und Open Source
+
+MediaCenter macht eine Sache richtig gut: Es spielt die Medien ab, die du schon hast — einfach und schön. Wer die Entwicklung unterstützen möchte, findet in den Einstellungen einen optionalen Spenden-Link — niemals als Pop-up und niemals verpflichtend.

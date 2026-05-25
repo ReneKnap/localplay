@@ -1,0 +1,21 @@
+MediaCenter plays the music and video files already on your device — no ads, no costs, no sign-up, and no distractions.
+
+Pick a folder and MediaCenter lists what's inside. Tap to play. Music keeps playing in the background with play, pause, next, and previous controls right in your notification and on the lockscreen. Videos play full screen and continue as audio when you leave the app.
+
+FEATURES
+• Play local audio and video from any folder you choose
+• Sequential or shuffled playback
+• Background playback with notification and lockscreen controls
+• Headset and Bluetooth button support
+• A clean, focused Material 3 interface — light and dark
+• Cover art for music and a frame preview for video
+• Editable playback queue: reorder, remove, reset
+
+NO NONSENSE
+• No ads, ever
+• No fees and no in-app purchases
+• No account and no tracking
+• No internet permission — playback is fully local
+• Free and open source
+
+MediaCenter does one thing well: it plays the media you already have, simply and beautifully. If you would like to support development, there is an optional donation link in the settings — never a pop-up and never required.
