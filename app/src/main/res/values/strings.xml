@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Localplay</string>
+    <string name="app_name">Localplay - Open Media Player</string>
+    <string name="app_name_short">Localplay</string>
 
     <string name="home_empty_title">Pick a folder to get started</string>
     <string name="home_empty_explanation">Localplay scans the folders you choose and plays the music inside.</string>
