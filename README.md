@@ -7,9 +7,6 @@ deliberately simple: no ads, no accounts, no tracking, no in-app purchases. Pick
 a folder, press play, and the music keeps going in the background with full
 controls from the notification and lockscreen. The app is free and open source.
 
-> **Status:** early / pre-release (`v0.1.0`). Music and video playback work end
-> to end; a public Play Store release is in preparation (see [Roadmap](#roadmap)).
-
 ## Features
 
 - **Pick a folder** to play from, via the Storage Access Framework - no broad
