@@ -1,24 +1,24 @@
 # Privacy Policy
 
-**App:** MediaCenter (`io.github.reneknap.mediacenter`)
-**Effective date:** 2026-05-23
+**App:** Localplay (`io.github.reneknap.localplay`)
+**Effective date:** 2026-05-26
 
 > This is a stub privacy policy for the pre-release app. It will be hosted publicly
 > and linked from the app's store listing before the Play Store release.
 
 ## Summary
 
-MediaCenter does **not** collect, store, or transmit any personal data. The app
+Localplay does **not** collect, store, or transmit any personal data. The app
 itself has no network access, no analytics, no advertising, and no third-party
 tracking. The only data it keeps is a few preferences stored locally on your device
 (see below).
 
 ## What the app accesses
 
-- **Audio files in a folder you choose.** When you pick a folder, the app uses
-  Android's Storage Access Framework to read the audio files inside it, solely to
-  list and play them. The app does **not** request broad storage permissions and
-  cannot see files outside the folder you grant.
+- **Media files in a folder you choose.** When you pick a folder, the app uses
+  Android's Storage Access Framework to read the audio and video files inside it,
+  solely to list and play them. The app does **not** request broad storage
+  permissions and cannot see files outside the folder you grant.
 
 ## What the app stores
 
@@ -47,11 +47,11 @@ has no access to that backup.
 The only outbound action is **initiated by you**: the optional "Support development"
 dialog can open external donation links (Ko-fi, PayPal.me) in your browser or another
 app. Once a link opens, that external service handles it under **its own** privacy
-policy — MediaCenter sends it nothing about you.
+policy — Localplay sends it nothing about you.
 
 ## Permissions
 
-MediaCenter requests only what playback needs:
+Localplay requests only what playback needs:
 
 - **Notifications** (`POST_NOTIFICATIONS`) — to show the playback notification with
   transport controls.

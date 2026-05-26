@@ -1,24 +1,25 @@
-# MediaCenter
+# Localplay
 
-A clean, ad-free Android media player for local files — music first, video later.
+A clean, ad-free Android media player for local files — music and video.
 
-MediaCenter plays music from a folder you pick on your device. It's deliberately
-simple: no ads, no accounts, no tracking, no in-app purchases. Pick a folder,
-press play, and the music keeps going in the background with full controls from
-the notification and lockscreen. Later versions will extend the same model to
-video. The app is free and open source.
+Localplay plays music and video from a folder you pick on your device. It's
+deliberately simple: no ads, no accounts, no tracking, no in-app purchases. Pick
+a folder, press play, and the music keeps going in the background with full
+controls from the notification and lockscreen. The app is free and open source.
 
-> **Status:** early / pre-release (`v0.1.0`). Music playback works end to end;
-> video support and a public Play Store release are planned (see [Roadmap](#roadmap)).
+> **Status:** early / pre-release (`v0.1.0`). Music and video playback work end
+> to end; a public Play Store release is in preparation (see [Roadmap](#roadmap)).
 
 ## Features
 
 - **Pick a folder** to play from, via the Storage Access Framework — no broad
   storage permissions required.
-- **Audio scan** of the chosen folder for supported files.
+- **Media scan** of the chosen folder for supported audio and video files.
 - **Playback queue** with **sequential** and **shuffle** modes.
-- **Background playback** through a foreground service, so music continues when
-  the app is closed.
+- **Video playback** — inline player with fullscreen and orientation handling;
+  video keeps playing as audio in the background.
+- **Background playback** through a foreground service, so playback continues
+  when the app is closed.
 - **Media-style notification** and **lockscreen controls**: play/pause, next,
   previous.
 - **Headset and Bluetooth** button handling.
@@ -48,7 +49,7 @@ Min SDK 26 · Target SDK 35.
 
 ```bash
 git clone <repository-url>
-cd MediaCenter
+cd localplay
 ./gradlew assembleDebug
 ```
 
@@ -63,19 +64,19 @@ or emulator. On Windows, use `gradlew.bat` instead of `./gradlew`.
    notification & lockscreen controls, headset/Bluetooth, audio focus. ✅
 3. **UI polish** — now-playing screen, queue view, dark mode & dynamic theming. ✅
 4. **Pre-release essentials** — branding, donation/rating hooks, license & docs. ✅
-5. **Video support** — local video playback sharing the picked-folder model. ⏳
+5. **Video support** — local video playback sharing the picked-folder model. ✅
 6. **Play Store launch** — signed release, store listing, public repository. ⏳
 
 ## Support
 
-MediaCenter is free and won't nag you with ads or pop-ups. If you'd like to support
+Localplay is free and won't nag you with ads or pop-ups. If you'd like to support
 development, the app has a small, opt-in "Support development" dialog with external
 donation links (Ko-fi and PayPal.me). Donations are entirely voluntary and the app
 stays fully functional without them.
 
 ## Privacy
 
-MediaCenter does not collect, store, or transmit personal data, and the app itself
+Localplay does not collect, store, or transmit personal data, and the app itself
 has no network access. See [PRIVACY.md](PRIVACY.md) for details.
 
 ## License
